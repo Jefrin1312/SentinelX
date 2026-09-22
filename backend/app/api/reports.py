@@ -8,15 +8,17 @@ summarised by severity, status, alert type, and source.
 from datetime import date, datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import Date, func
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import require_analyst
 from app.database import get_db
 from app.models.alert import Alert, AlertStatus, Severity
+from app.models.audit import AuditAction
 from app.models.event import Event
 from app.models.user import User
+from app.services.audit import write_audit
 from app.schemas.dashboard import IpCount, TypeCount
 from app.schemas.report import (
     DailyAlertPoint,
@@ -37,10 +39,18 @@ def _utc_day_bucket(column):
     return func.date_trunc("day", column.op("AT TIME ZONE")("UTC")).cast(Date)
 
 
+def _client_ip(request: Request) -> str | None:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else None
+
+
 @router.get("/summary", response_model=ReportSummary, summary="Reports summary for a date range")
 def report_summary(
+    request: Request,
     db: DbSession,
-    _user: Annotated[User, Depends(require_analyst)],
+    user: Annotated[User, Depends(require_analyst)],
     days: int = Query(default=7, ge=1, le=90),
     topn: int = Query(default=10, ge=1, le=25),
 ) -> ReportSummary:
@@ -163,6 +173,16 @@ def report_summary(
         severity_counts[sev] = count
     for st, count in status_rows:
         status_counts[st] = count
+
+    write_audit(
+        db,
+        user=user,
+        action=AuditAction.REPORT_GENERATED,
+        resource_type="report",
+        resource_id="summary",
+        ip_address=_client_ip(request),
+        details={"days": days, "topn": topn},
+    )
 
     return ReportSummary(
         range_start=since,

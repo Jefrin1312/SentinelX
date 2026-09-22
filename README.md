@@ -8,7 +8,8 @@ a rule-based detection engine, and managing investigations of generated
 alerts. It is designed as a polished, full-stack cybersecurity portfolio
 project.
 
-> Early development build — core pipeline is under construction.
+> Development build — the detection pipeline is actively evolving. Demo
+> credentials (below) are seeded on startup and are intended for local use only.
 
 ## Quick start
 
@@ -18,6 +19,13 @@ docker compose up --build
 
 - Frontend: http://localhost:8080
 - Backend API docs (Swagger): http://localhost:8000/api/docs
+
+Demo accounts are created automatically on first start:
+
+| Role    | Username  | Password      |
+| ------- | --------- | ------------- |
+| Admin   | `admin`   | `Admin@12345` |
+| Analyst | `analyst` | `Analyst@12345` |
 
 ## Stack
 

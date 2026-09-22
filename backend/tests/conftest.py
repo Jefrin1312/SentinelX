@@ -13,6 +13,9 @@ os.environ["DATABASE_URL"] = (
     "postgresql+psycopg://sentinelx:change_me@127.0.0.1:5432/sentinelx_test"
 )
 os.environ["SECRET_KEY"] = "test-only-secret-key-that-is-long-enough-for-hmac-sha256-33bytes"
+# The whole suite shares a single TestClient IP, so login rate limiting must be
+# disabled or later tests would be blocked regardless of correctness.
+os.environ["LOGIN_RATE_LIMIT"] = "0/minute"
 
 import pytest
 from fastapi.testclient import TestClient

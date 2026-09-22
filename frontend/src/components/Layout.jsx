@@ -87,7 +87,7 @@ export default function Layout() {
             Monitoring
           </div>
           <div className="topbar-spacer"></div>
-          <span className="topbar-version">SentinelX v0.4</span>
+          <span className="topbar-version">SentinelX v0.4.0</span>
         </header>
         <section className="content">
           <Outlet />

@@ -29,5 +29,5 @@ def health(db: Session = Depends(get_db)) -> dict:
         "application": settings.APP_NAME,
         "environment": settings.APP_ENV,
         "database": "up" if database_ok else "down",
-        "version": "0.1.0",
+        "version": settings.APP_VERSION,
     }

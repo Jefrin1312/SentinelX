@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser
+from app.auth.ratelimit import is_rate_limited
 from app.auth.security import (
     create_access_token,
     decode_access_token,
@@ -98,6 +99,13 @@ def login(payload: LoginRequest, request: Request, db: DbSession) -> LoginRespon
     """Authenticate with username and password and receive a JWT."""
     user = db.query(User).filter(User.username == payload.username).first()
     ip = _client_ip(request)
+    settings = get_settings()
+
+    if is_rate_limited(ip or "unknown", limit=settings.LOGIN_RATE_LIMIT):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Try again shortly.",
+        )
 
     if user is None or not verify_password(payload.password, user.password_hash):
         write_audit(
@@ -140,7 +148,6 @@ def login(payload: LoginRequest, request: Request, db: DbSession) -> LoginRespon
         ip_address=ip,
     )
 
-    settings = get_settings()
     return LoginResponse(
         access_token=token,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,

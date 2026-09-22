@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     APP_NAME: str = "SentinelX"
     APP_ENV: str = "development"
-    APP_VERSION: str = "0.3.0"
+    APP_VERSION: str = "0.4.0"
     API_PREFIX: str = "/api"
     DEBUG: bool = False
 
