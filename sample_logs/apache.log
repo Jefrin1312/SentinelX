@@ -1,0 +1,15 @@
+198.51.100.7 - - [22/Sep/2026:06:10:02 +0000] "GET /index.html HTTP/1.1" 200 5120
+198.51.100.7 - - [22/Sep/2026:06:10:03 +0000] "GET /images/logo.png HTTP/1.1" 200 10240
+198.51.100.7 - - [22/Sep/2026:06:10:10 +0000] "GET /admin/login.php HTTP/1.1" 401 2048
+198.51.100.7 - - [22/Sep/2026:06:10:11 +0000] "GET /admin/login.php HTTP/1.1" 401 2048
+198.51.100.7 - - [22/Sep/2026:06:10:12 +0000] "GET /admin/login.php HTTP/1.1" 401 2048
+198.51.100.7 - - [22/Sep/2026:06:10:13 +0000] "GET /../../etc/passwd HTTP/1.1" 403 1536
+198.51.100.7 - - [22/Sep/2026:06:10:14 +0000] "GET /admin/index.php?user=union%20select%20password%20from%20users HTTP/1.1" 404 512
+198.51.100.7 - - [22/Sep/2026:06:10:15 +0000] "GET /cgi-bin/test.cgi?cmd=cats%20/etc/passwd HTTP/1.1" 400 128
+198.51.100.7 - - [22/Sep/2026:06:10:16 +0000] "POST /login HTTP/1.1" 302 0
+198.51.100.7 - - [22/Sep/2026:06:10:17 +0000] "GET /missing/contact HTTP/1.1" 404 1024
+198.51.100.7 - - [22/Sep/2026:06:10:18 +0000] "GET /missing/api HTTP/1.1" 404 1024
+198.51.100.7 - - [22/Sep/2026:06:10:19 +0000] "GET /missing/assets HTTP/1.1" 404 1024
+192.0.2.44 - - [22/Sep/2026:06:11:00 +0000] "GET /favicon.ico HTTP/1.1" 404 256
+192.0.2.44 - - [22/Sep/2026:06:11:01 +0000] "GET /index.html HTTP/1.1" 200 5120
+203.0.113.99 - - [22/Sep/2026:06:12:00 +0000] "POST /api/v1/upload HTTP/1.1" 500 4096
