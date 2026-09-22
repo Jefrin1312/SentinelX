@@ -310,6 +310,7 @@ Recorded actions include: `LOGIN_SUCCESS`, `LOGIN_FAILURE`, `LOGOUT`,
 | Method | Path | Access | Description |
 | ------ | ---- | ------ | ----------- |
 | GET | `/api/reports/summary` | Analyst | Aggregated report for a date range |
+| GET | `/api/reports/export` | Analyst | Download the report over a date range as a PDF |
 
 **GET /api/reports/summary?days=7&topn=10**
 
@@ -318,6 +319,22 @@ Recorded actions include: `LOGIN_SUCCESS`, `LOGIN_FAILURE`, `LOGOUT`,
   alert series, `top_alert_types`, `by_severity`, `by_status`,
   `top_source_ips`, and `top_event_types`.
 - Records `REPORT_GENERATED` in the audit log with the acting user and client IP.
+
+**GET /api/reports/export?days=7&topn=10**
+
+- Same parameters and same live aggregates as `/summary`, rendered as a
+  downloadable **PDF** (`application/pdf`, `Content-Disposition: attachment`)
+  with the report period, totals, severity/status breakdowns, top alert types
+  (most-triggered rules), top source IPs, top event types, daily
+  event/alert summary, and generation timestamp.
+- Analysts and admins may download; unauthenticated requests return `401`.
+- Records `REPORT_GENERATED` (resource `pdf`) in the audit log.
+
+```bash
+curl -s -OJ \
+  -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/api/reports/export?days=7"
+```
 
 ---
 

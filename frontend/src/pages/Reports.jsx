@@ -18,7 +18,7 @@ import StatCard from "../components/StatCard.jsx";
 import ChartCard from "../components/ChartCard.jsx";
 import LoadingSpinner from "../components/LoadingSpinner.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
-import { fetchReportSummary } from "../services/reports.js";
+import { fetchReportSummary, exportReportPdf } from "../services/reports.js";
 import { getApiError } from "../services/api.js";
 
 const DAY_OPTIONS = [7, 14, 30, 90];
@@ -39,6 +39,16 @@ export default function Reports() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState("");
+
+  const downloadPdf = () => {
+    setExportingPdf(true);
+    setPdfError("");
+    exportReportPdf({ days })
+      .catch((err) => setPdfError(getApiError(err)))
+      .finally(() => setExportingPdf(false));
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -99,6 +109,15 @@ export default function Reports() {
               {d}d
             </button>
           ))}
+          <button
+            className="btn btn-outline btn-sm"
+            disabled={exportingPdf}
+            onClick={downloadPdf}
+            title="Download the report as a PDF"
+          >
+            {exportingPdf ? "Exporting…" : "Download PDF"}
+          </button>
+          {pdfError && <span className="dim-cell">{pdfError}</span>}
         </div>
       </div>
 

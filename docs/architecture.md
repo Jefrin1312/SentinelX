@@ -55,7 +55,7 @@ backend/
     detection/              # rule loader + threshold detection engine
     models/                 # ORM models
     schemas/                # Pydantic request/response models
-    services/               # audit writer, CSV export helpers
+    services/               # audit writer, CSV export, PDF report generation
 rules/                      # Declarative detection rule bundles (YAML)
 sample_logs/                # Bundled sample log files for the "import" feature
 database/                   # schema.sql mirror + seed placeholder
@@ -177,6 +177,9 @@ All figures are live SQL aggregations over the requested window — nothing is
 hardcoded. The dashboard covers the last 24 hours; reports summarise events
 and alerts with zero-filled daily time series, severity/status/type/source
 breakdowns, top source IPs and event types, and average resolution time.
+Reports download as JSON aggregates, CSV evidence (alerts/events/audit), or a
+PDF security report (`services/pdf.py`, built with ReportLab from the same
+live aggregates).
 
 ## Deployment
 

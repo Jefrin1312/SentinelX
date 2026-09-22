@@ -8,17 +8,19 @@ summarised by severity, status, alert type, and source.
 from datetime import date, datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import Date, func
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import require_analyst
+from app.config import get_settings
 from app.database import get_db
 from app.models.alert import Alert, AlertStatus, Severity
 from app.models.audit import AuditAction
 from app.models.event import Event
 from app.models.user import User
 from app.services.audit import write_audit
+from app.services.pdf import generate_report_pdf
 from app.schemas.dashboard import IpCount, TypeCount
 from app.schemas.report import (
     DailyAlertPoint,
@@ -55,6 +57,55 @@ def report_summary(
     topn: int = Query(default=10, ge=1, le=25),
 ) -> ReportSummary:
     """Ingest/alert totals, daily trends, and breakdowns over the last ``days``."""
+    summary = _build_summary(db, days, topn)
+
+    write_audit(
+        db,
+        user=user,
+        action=AuditAction.REPORT_GENERATED,
+        resource_type="report",
+        resource_id="summary",
+        ip_address=_client_ip(request),
+        details={"format": "json", "days": days, "topn": topn},
+    )
+
+    return summary
+
+
+@router.get("/export", summary="Export a report as a PDF download")
+def report_export(
+    request: Request,
+    db: DbSession,
+    user: Annotated[User, Depends(require_analyst)],
+    days: int = Query(default=7, ge=1, le=90),
+    topn: int = Query(default=10, ge=1, le=25),
+) -> Response:
+    """Render the same live aggregates as a downloadable PDF security report."""
+    summary = _build_summary(db, days, topn)
+    generated_at = datetime.now(timezone.utc)
+    payload = generate_report_pdf(summary, get_settings().APP_NAME, generated_at)
+
+    write_audit(
+        db,
+        user=user,
+        action=AuditAction.REPORT_GENERATED,
+        resource_type="report",
+        resource_id="pdf",
+        ip_address=_client_ip(request),
+        details={"format": "pdf", "days": days, "topn": topn},
+    )
+
+    period = f"{summary.range_start:%Y%m%d}-{summary.range_end:%Y%m%d}"
+    filename = f"sentinelx_report_{summary.days}d_{period}.pdf"
+    return Response(
+        content=payload,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _build_summary(db: Session, days: int, topn: int) -> ReportSummary:
+    """Compute all report aggregates live from the database over ``days``."""
     now = datetime.now(timezone.utc)
     since = now - timedelta(days=days)
 
@@ -173,16 +224,6 @@ def report_summary(
         severity_counts[sev] = count
     for st, count in status_rows:
         status_counts[st] = count
-
-    write_audit(
-        db,
-        user=user,
-        action=AuditAction.REPORT_GENERATED,
-        resource_type="report",
-        resource_id="summary",
-        ip_address=_client_ip(request),
-        details={"days": days, "topn": topn},
-    )
 
     return ReportSummary(
         range_start=since,
