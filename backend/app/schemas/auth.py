@@ -43,3 +43,16 @@ class TokenResponse(BaseModel):
 
 class LoginResponse(TokenResponse):
     user: UserOut
+
+
+class ProfileUpdate(BaseModel):
+    """Update the authenticated user's own contact details."""
+
+    email: EmailStr
+
+
+class PasswordChange(BaseModel):
+    """Change the authenticated user's own password."""
+
+    current_password: str = Field(min_length=1, max_length=72)
+    new_password: str = Field(min_length=10, max_length=72, description="10+ character password")

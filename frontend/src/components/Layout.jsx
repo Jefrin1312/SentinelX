@@ -72,7 +72,10 @@ export default function Layout() {
               <span className="user-role">{user?.role}</span>
             </div>
           </div>
-          <button className="btn btn-outline btn-sm" onClick={handleLogout}>
+          <button className="btn btn-outline btn-sm" style={{ marginTop: 8 }} onClick={() => navigate("/profile")}>
+            Profile
+          </button>
+          <button className="btn btn-outline btn-sm" style={{ marginTop: 8 }} onClick={handleLogout}>
             Sign out
           </button>
         </div>

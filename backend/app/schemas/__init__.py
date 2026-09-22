@@ -1,6 +1,14 @@
 """Pydantic request/response schemas for the API."""
 
-from app.schemas.auth import LoginRequest, LoginResponse, RegisterRequest, TokenResponse, UserOut
+from app.schemas.auth import (
+    LoginRequest,
+    LoginResponse,
+    PasswordChange,
+    ProfileUpdate,
+    RegisterRequest,
+    TokenResponse,
+    UserOut,
+)
 from app.schemas.user import UserActivateRequest, UserListResponse, UserRoleRequest, UserUpdate
 from app.schemas.event import EventCreate, EventOut, EventListResponse, LogIngestBatch, LogIngestResponse
 from app.schemas.alert import (
@@ -37,6 +45,8 @@ __all__ = [
     "LoginResponse",
     "TokenResponse",
     "UserOut",
+    "ProfileUpdate",
+    "PasswordChange",
     "UserUpdate",
     "UserRoleRequest",
     "UserActivateRequest",

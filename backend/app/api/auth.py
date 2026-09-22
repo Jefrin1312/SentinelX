@@ -17,7 +17,14 @@ from app.config import get_settings
 from app.database import get_db
 from app.models.audit import AuditAction, TokenBlacklist
 from app.models.user import User, UserRole
-from app.schemas.auth import LoginRequest, LoginResponse, RegisterRequest, UserOut
+from app.schemas.auth import (
+    LoginRequest,
+    LoginResponse,
+    PasswordChange,
+    ProfileUpdate,
+    RegisterRequest,
+    UserOut,
+)
 from app.services.audit import write_audit
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -174,3 +181,97 @@ def logout(request: Request, db: DbSession, current_user: CurrentUser) -> None:
 def me(current_user: CurrentUser) -> User:
     """Return the currently authenticated user."""
     return current_user
+
+
+@router.patch("/me", response_model=UserOut, summary="Update own profile")
+def update_profile(
+    payload: ProfileUpdate,
+    request: Request,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> User:
+    """Change the authenticated user's own contact email."""
+    taken = (
+        db.query(User)
+        .filter(User.email == payload.email, User.id != current_user.id)
+        .first()
+    )
+    if taken is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A user with that email already exists.",
+        )
+
+    current_user.email = payload.email
+    db.commit()
+    db.refresh(current_user)
+
+    write_audit(
+        db,
+        user=current_user,
+        action=AuditAction.PROFILE_UPDATED,
+        resource_type="user",
+        resource_id=current_user.id,
+        ip_address=_client_ip(request),
+        details={"email": payload.email},
+    )
+    return current_user
+
+
+@router.post(
+    "/change-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Change own password",
+)
+def change_password(
+    payload: PasswordChange,
+    request: Request,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> None:
+    """Verify the current password, set a new one, and revoke this session.
+
+    The JWT used to authenticate this request is blacklisted, forcing the user
+    to sign in again with the new password.
+    """
+    if not verify_password(payload.current_password, current_user.password_hash):
+        write_audit(
+            db,
+            user=current_user,
+            action=AuditAction.LOGIN_FAILURE,
+            resource_type="user",
+            resource_id=current_user.username,
+            ip_address=_client_ip(request),
+            details={"reason": "wrong_current_password"},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Current password is incorrect.",
+        )
+
+    current_user.password_hash = hash_password(payload.new_password)
+    db.commit()
+
+    bearer = request.headers.get("Authorization", "")
+    token = bearer.removeprefix("Bearer ").strip()
+    try:
+        payload = decode_access_token(token)
+    except Exception:
+        payload = None
+    if payload:
+        db.add(
+            TokenBlacklist(
+                jti=payload["jti"],
+                expires_at=datetime.fromtimestamp(payload["exp"], tz=timezone.utc),
+            )
+        )
+        db.commit()
+
+    write_audit(
+        db,
+        user=current_user,
+        action=AuditAction.PASSWORD_CHANGED,
+        resource_type="user",
+        resource_id=current_user.id,
+        ip_address=_client_ip(request),
+    )
