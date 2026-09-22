@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     # Uploaded log limits
     MAX_UPLOAD_SIZE_MB: int = 5
     MAX_UPLOAD_LINES: int = 5000
+    SAMPLE_LOGS_DIR: str = "sample_logs"
 
     # Slow down failed login attempts (simple brute-force protection).
     LOGIN_RATE_LIMIT: str = "10/minute"

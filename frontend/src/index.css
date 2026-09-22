@@ -709,6 +709,76 @@ a:hover {
   }
 }
 
+/* ---------- Logs page ---------- */
+
+.field-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.field-row .field {
+  min-width: 160px;
+}
+
+.field.grow {
+  flex: 1;
+}
+
+.field-row .mt-auto {
+  margin-left: auto;
+}
+
+.card-header .field,
+.card-header select {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.card-body .paste-area {
+  width: 100%;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  resize: vertical;
+}
+
+.card-body .paste-area:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.row-active {
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.meta-json {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 12px;
+  overflow-x: auto;
+}
+
+@media (max-width: 760px) {
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.001s !important;
