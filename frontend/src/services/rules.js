@@ -10,6 +10,11 @@ export async function setRuleEnabled(id, enabled) {
   return res.data;
 }
 
+export async function createRule(payload) {
+  const res = await api.post("/rules", payload);
+  return res.data;
+}
+
 export async function reloadRules() {
   const res = await api.post("/rules/reload");
   return res.data;
