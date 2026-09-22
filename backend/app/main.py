@@ -12,7 +12,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app import bootstrap
-from app.api import alerts, audit, auth, dashboard, health, investigations, logs, rules, users
+from app.api import (
+    alerts,
+    audit,
+    auth,
+    dashboard,
+    health,
+    investigations,
+    logs,
+    reports,
+    rules,
+    settings as settings_api,
+    users,
+)
 from app.config import get_settings
 
 settings = get_settings()
@@ -31,7 +43,7 @@ app = FastAPI(
         "Security Log Analysis and Threat Detection Platform. "
         "Ingest, normalise, detect, investigate and report on security events."
     ),
-    version="0.2.0",
+    version=settings.APP_VERSION,
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
@@ -66,6 +78,8 @@ app.include_router(alerts.router, prefix=settings.API_PREFIX)
 app.include_router(rules.router, prefix=settings.API_PREFIX)
 app.include_router(investigations.router, prefix=settings.API_PREFIX)
 app.include_router(audit.router, prefix=settings.API_PREFIX)
+app.include_router(reports.router, prefix=settings.API_PREFIX)
+app.include_router(settings_api.router, prefix=settings.API_PREFIX)
 
 
 @app.get("/", include_in_schema=False)

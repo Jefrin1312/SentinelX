@@ -13,6 +13,8 @@ import Investigations from "./pages/Investigations.jsx";
 import InvestigationDetail from "./pages/InvestigationDetail.jsx";
 import AuditLogs from "./pages/AuditLogs.jsx";
 import Users from "./pages/Users.jsx";
+import Reports from "./pages/Reports.jsx";
+import Settings from "./pages/Settings.jsx";
 
 export default function App() {
   return (
@@ -36,6 +38,8 @@ export default function App() {
           <Route path="/rules" element={<Rules />} />
           <Route path="/audit-logs" element={<AuditLogs />} />
           <Route path="/users" element={<Users />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/settings" element={<Settings />} />
         </Route>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -21,6 +21,15 @@ from app.schemas.investigation import (
 )
 from app.schemas.rule import RuleListResponse, RuleOut, RuleReloadResponse, RuleUpdate
 from app.schemas.audit import AuditLogListResponse, AuditLogOut
+from app.schemas.report import (
+    AlertTypeReport,
+    DailyAlertPoint,
+    DailyEventPoint,
+    ReportSummary,
+    SeverityReport,
+    StatusReport,
+)
+from app.schemas.settings import PlatformSettings
 
 __all__ = [
     "RegisterRequest",
@@ -55,4 +64,11 @@ __all__ = [
     "InvestigationNoteOut",
     "AuditLogOut",
     "AuditLogListResponse",
+    "ReportSummary",
+    "DailyEventPoint",
+    "DailyAlertPoint",
+    "AlertTypeReport",
+    "SeverityReport",
+    "StatusReport",
+    "PlatformSettings",
 ]
