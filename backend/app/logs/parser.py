@@ -72,7 +72,7 @@ _RE_HTTP = re.compile(
 # Suspicious request signatures — detection only, payloads are never executed.
 _SUSPICIOUS_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("path_traversal", re.compile(r"(\.\./){1,}|\.\.|%2e%2e", re.IGNORECASE)),
-    ("sql_injection", re.compile(r"\b(union\s+select|select\s+.*\bfrom\b|union%20select|'(\s|-|%)|or\s+1=1)", re.IGNORECASE)),
+    ("sql_injection", re.compile(r"(\bunion\s+select|union%20select|\bselect\s+.*\bfrom\b|'(\s|-|%)|\bor\s+1=1)", re.IGNORECASE)),
     ("command_injection", re.compile(r"[;&|]\s*(cat|bash|sh|whoami|id|nc|wget|curl)\b|`.*`|%00", re.IGNORECASE)),
     ("xss_attempt", re.compile(r"<script|javascript:|onerror\s*=|alert\s*\(", re.IGNORECASE)),
     ("encoded_payload", re.compile(r"(%[0-9a-fA-F]{2}){6,}")),

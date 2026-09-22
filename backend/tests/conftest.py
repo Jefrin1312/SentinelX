@@ -58,3 +58,15 @@ def auth_headers(client):
     assert response.status_code == 201, response.text
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture()
+def admin_headers(client):
+    """Login as the Demo seeded administrator and return bearer headers."""
+    response = client.post(
+        "/api/auth/login",
+        json={"username": "admin", "password": "Admin@12345"},
+    )
+    assert response.status_code == 200, response.text
+    token = response.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}

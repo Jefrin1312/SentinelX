@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     MAX_UPLOAD_LINES: int = 5000
     SAMPLE_LOGS_DIR: str = "sample_logs"
 
+    # Detection rule bundles directory (YAML files loaded at startup)
+    RULES_DIR: str = "rules"
+
     # Slow down failed login attempts (simple brute-force protection).
     LOGIN_RATE_LIMIT: str = "10/minute"
 

@@ -8,9 +8,10 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from app.database import Base, SessionLocal, engine
-from app.models.user import User, UserRole
 from app.auth.security import hash_password
+from app.database import Base, SessionLocal, engine
+from app.detection.loader import load_rules
+from app.models.user import User, UserRole
 
 logger = logging.getLogger("sentinelx.bootstrap")
 
@@ -24,7 +25,7 @@ DEMO_ANALYST_EMAIL = "analyst@sentinelx.example.com"
 
 
 def init_db() -> None:
-    """Create any missing tables and seed demo users."""
+    """Create any missing tables, seed demo users and load detection rules."""
     Base.metadata.create_all(bind=engine)
 
     with SessionLocal() as db:
@@ -42,6 +43,7 @@ def init_db() -> None:
             password=DEMO_ANALYST_PASSWORD,
             role=UserRole.ANALYST,
         )
+        load_rules(db)
 
 
 def _seed_user(db: Session, *, username: str, email: str, password: str, role: str) -> None:

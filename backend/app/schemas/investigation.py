@@ -15,10 +15,11 @@ class InvestigationCreate(BaseModel):
 
 
 class InvestigationUpdate(BaseModel):
-    """Advance an investigation to a new status or update its summary."""
+    """Advance an investigation to a new status or update its summary/assignee."""
 
     status: str | None = Field(default=None, pattern=f"^({'|'.join(InvestigationStatus.ALL)})$")
     summary: str | None = Field(default=None, max_length=4000)
+    assigned_to: int | None = None
 
 
 class InvestigationOut(BaseModel):
@@ -33,6 +34,18 @@ class InvestigationOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     resolved_at: datetime | None
+
+
+class InvestigationListResponse(BaseModel):
+    total: int
+    items: list[InvestigationOut]
+
+
+class InvestigationDetailOut(InvestigationOut):
+    """Investigation plus the alert headline and its note thread."""
+
+    alert: dict = Field(default_factory=dict)
+    notes: list["InvestigationNoteOut"] = []
 
 
 class InvestigationNoteCreate(BaseModel):

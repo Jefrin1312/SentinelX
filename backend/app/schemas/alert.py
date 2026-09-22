@@ -2,9 +2,10 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.alert import AlertStatus, Severity
+from app.schemas.investigation import InvestigationOut
 
 
 class AlertOut(BaseModel):
@@ -22,6 +23,18 @@ class AlertOut(BaseModel):
     updated_at: datetime
     resolved_at: datetime | None
     rule_name: str | None = None
+    metadata: dict = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _expose_metadata(cls, value):
+        """Read the ``metadata`` JSON column (mapped as ``metadata_json``)."""
+        if hasattr(value, "metadata_json"):
+            return {
+                **{attr.key: getattr(value, attr.key) for attr in value.__mapper__.column_attrs},
+                "metadata": value.metadata_json or {},
+            }
+        return value
 
 
 class AlertListResponse(BaseModel):
@@ -48,3 +61,10 @@ class RelatedEventOut(BaseModel):
     severity: str
     source: str
     message: str
+
+
+class AlertDetailOut(AlertOut):
+    """Alert plus the related event and open investigation for a detail view."""
+
+    event: RelatedEventOut | None = None
+    investigation: InvestigationOut | None = None

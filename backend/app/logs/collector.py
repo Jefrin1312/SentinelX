@@ -2,7 +2,9 @@
 
 Orchestrates the ingestion of raw text through the parser and normaliser and
 persists the resulting events. Handles batching, duplicate suppression within
-a batch, and strict size/line limits for uploaded content.
+a batch, and strict size/line limits for uploaded content. Each stored event
+is passed through the detection engine, whose threshold rules may raise
+alerts.
 """
 
 import logging
@@ -11,6 +13,7 @@ from typing import Callable
 
 from sqlalchemy.orm import Session
 
+from app.detection.engine import detect
 from app.logs.normalizer import normalize
 from app.logs.parser import ParsedLog, parse_log_line
 from app.models.event import Event
@@ -34,6 +37,7 @@ def ingest_lines(
     parsed_count = 0
     unknown_count = 0
     created_count = 0
+    alerts_count = 0
     event_ids: list[int] = []
     seen_messages: set[str] = set()
 
@@ -70,8 +74,11 @@ def ingest_lines(
         event = Event(**event_dto)
         db.add(event)
         db.flush()  # populate the id so batch results are accurate
-        created_count += 1
         event_ids.append(event.id)
+        created_count += 1
+
+        alerts = _run_detection(db, event)
+        alerts_count += len(alerts)
 
     db.commit()
 
@@ -80,9 +87,18 @@ def ingest_lines(
         "parsed": parsed_count,
         "unknown": unknown_count,
         "events_created": created_count,
-        "alerts_created": 0,
+        "alerts_created": alerts_count,
         "event_ids": event_ids,
     }
+
+
+def _run_detection(db: Session, event: Event) -> list:
+    """Run the detection engine, keeping ingestion alive if it ever fails."""
+    try:
+        return detect(db, event)
+    except Exception:  # noqa: BLE001 — detection must never block ingestion.
+        logger.exception("Detection engine failed on event %s", event.id)
+        return []
 
 
 def _safe_text(value: str) -> str:

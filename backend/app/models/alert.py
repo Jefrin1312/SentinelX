@@ -1,8 +1,9 @@
 """Security alert model produced by the detection engine."""
 
 from datetime import datetime, timezone
+from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -52,6 +53,7 @@ class Alert(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
 
     rule = relationship("DetectionRule", lazy="joined")
     event = relationship("Event", lazy="joined")

@@ -63,7 +63,8 @@ CREATE TABLE IF NOT EXISTS alerts (
     status      VARCHAR(20) NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','INVESTIGATING','RESOLVED')),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    resolved_at TIMESTAMPTZ
+    resolved_at TIMESTAMPTZ,
+    metadata    JSONB       NOT NULL DEFAULT '{}'::jsonb
 );
 
 CREATE INDEX IF NOT EXISTS idx_alerts_status    ON alerts (status);

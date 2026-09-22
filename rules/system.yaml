@@ -1,0 +1,37 @@
+# System rules — privilege, account and host integrity concerns.
+
+category: system
+
+rules:
+  - name: Privilege Escalation via Sudo
+    description: >
+      A user executed a command with elevated privileges. Auditing every sudo
+      invocation surfaces privilege abuse early in the kill chain.
+    severity: MEDIUM
+    threshold: 1
+    time_window: 60
+    rule_definition:
+      event_type: SUDO_COMMAND
+      key: username
+
+  - name: User Account Created
+    description: >
+      A new local account was created. Persistent backdoors often rely on
+      freshly added accounts, so creation is worth an immediate look.
+    severity: LOW
+    threshold: 1
+    time_window: 60
+    rule_definition:
+      event_type: USER_CREATED
+      key: username
+
+  - name: User Account Deleted
+    description: >
+      A local account was removed. Destruction of accounts can be part of
+      credential poisoning or anti-forensics on a compromised host.
+    severity: LOW
+    threshold: 1
+    time_window: 60
+    rule_definition:
+      event_type: USER_DELETED
+      key: username

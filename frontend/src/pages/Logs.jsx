@@ -66,8 +66,9 @@ export default function Logs() {
     setActionNotice("");
     try {
       const res = await promise;
+      const alertCount = res.alerts_created ?? 0;
       setActionNotice(
-        `${res.events_created} events parsed (${res.parsed} recognised, ${res.unknown} unknown).`
+        `${res.events_created} events parsed (${res.parsed} recognised, ${res.unknown} unknown)${alertCount ? ` and ${alertCount} alert${alertCount === 1 ? "" : "s"} raised.` : "."}`
       );
       setPage((p) => ({ ...p, offset: 0 }));
     } catch (err) {

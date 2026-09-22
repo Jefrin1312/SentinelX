@@ -4,6 +4,7 @@ from app.schemas.auth import LoginRequest, LoginResponse, RegisterRequest, Token
 from app.schemas.user import UserActivateRequest, UserListResponse, UserRoleRequest, UserUpdate
 from app.schemas.event import EventCreate, EventOut, EventListResponse, LogIngestBatch, LogIngestResponse
 from app.schemas.alert import (
+    AlertDetailOut,
     AlertListResponse,
     AlertOut,
     AlertStatusRequest,
@@ -11,11 +12,15 @@ from app.schemas.alert import (
 )
 from app.schemas.investigation import (
     InvestigationCreate,
+    InvestigationDetailOut,
+    InvestigationListResponse,
     InvestigationNoteCreate,
     InvestigationNoteOut,
     InvestigationOut,
     InvestigationUpdate,
 )
+from app.schemas.rule import RuleListResponse, RuleOut, RuleReloadResponse, RuleUpdate
+from app.schemas.audit import AuditLogListResponse, AuditLogOut
 
 __all__ = [
     "RegisterRequest",
@@ -35,10 +40,19 @@ __all__ = [
     "AlertOut",
     "AlertListResponse",
     "AlertStatusRequest",
+    "AlertDetailOut",
     "RelatedEventOut",
+    "RuleOut",
+    "RuleListResponse",
+    "RuleUpdate",
+    "RuleReloadResponse",
     "InvestigationCreate",
     "InvestigationOut",
     "InvestigationUpdate",
+    "InvestigationDetailOut",
+    "InvestigationListResponse",
     "InvestigationNoteCreate",
     "InvestigationNoteOut",
+    "AuditLogOut",
+    "AuditLogListResponse",
 ]

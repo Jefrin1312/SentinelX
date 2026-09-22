@@ -1,0 +1,42 @@
+# Web rules — HTTP anomalies and application-layer attack detection.
+
+category: web
+
+rules:
+  - name: SQL Injection Attempt
+    description: >
+      A request carrying SQL injection signatures was recorded against a web
+      application. Triggered on a single hit because payload manipulation is
+      unambiguously hostile.
+    severity: CRITICAL
+    threshold: 1
+    time_window: 60
+    rule_definition:
+      event_type: HTTP_SUSPICIOUS_REQUEST
+      key: source_ip
+      signature: sql_injection
+
+  - name: Web Attack Wave
+    description: >
+      A source IP delivered several requests flagged as suspicious (path
+      traversal, XSS, command injection, encoded payloads) within five
+      minutes — an active web attack campaign.
+    severity: HIGH
+    threshold: 3
+    time_window: 300
+    rule_definition:
+      event_type: HTTP_SUSPICIOUS_REQUEST
+      key: source_ip
+
+  - name: HTTP Server Error Spike
+    description: >
+      An unusually high number of 5xx responses from the web server, which can
+      indicate an abuse of the application, a scan, or a failing service under
+      attack.
+    severity: MEDIUM
+    threshold: 20
+    time_window: 300
+    rule_definition:
+      event_type: HTTP_REQUEST
+      key: source_ip
+      status: ERROR
