@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app import bootstrap
-from app.api import auth, health, users
+from app.api import auth, dashboard, health, users
 from app.config import get_settings
 
 settings = get_settings()
@@ -60,6 +60,7 @@ app.add_middleware(
 app.include_router(health.router, prefix=settings.API_PREFIX)
 app.include_router(auth.router, prefix=settings.API_PREFIX)
 app.include_router(users.router, prefix=settings.API_PREFIX)
+app.include_router(dashboard.router, prefix=settings.API_PREFIX)
 
 
 @app.get("/", include_in_schema=False)
