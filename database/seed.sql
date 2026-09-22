@@ -1,0 +1,9 @@
+-- ============================================================
+-- SentinelX seed data
+-- Demo credentials documented in the README / docs. These are
+-- for local development and controlled demonstration only.
+-- Populated at runtime by the backend bootstrap (see
+-- backend/app/models + api bootstrap) so it stays in sync with
+-- password hashing settings. This file mirrors seed users/rules
+-- for container bootstrap scenarios.
+-- ============================================================
