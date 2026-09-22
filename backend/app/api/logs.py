@@ -42,7 +42,7 @@ def _validate_bytes(raw: bytes) -> str:
     limit = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     if len(raw) > limit:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"Upload exceeds the {settings.MAX_UPLOAD_SIZE_MB} MB limit.",
         )
     return raw.decode("utf-8", errors="replace")
@@ -88,7 +88,7 @@ async def upload_logs(
     lines = contents.splitlines()
     if len(lines) > settings.MAX_UPLOAD_LINES:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"Upload exceeds the {settings.MAX_UPLOAD_LINES} line limit.",
         )
 
