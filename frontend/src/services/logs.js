@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
-import { api, getApiError } from "./api.js";
+import { api, downloadCsv, getApiError } from "./api.js";
 
 export async function fetchEvents(params = {}) {
   const res = await api.get("/logs", { params });
   return res.data;
+}
+
+export async function exportEvents(params = {}) {
+  await downloadCsv("/logs/export", params, "events.csv");
 }
 
 export async function ingestLines(lines, source = "MANUAL") {

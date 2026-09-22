@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, getApiError } from "./api.js";
+import { api, downloadCsv, getApiError } from "./api.js";
 
 export async function fetchAlerts(params = {}) {
   const res = await api.get("/alerts", { params });
@@ -14,6 +14,10 @@ export async function fetchAlert(id) {
 export async function updateAlertStatus(id, status, note) {
   const res = await api.patch(`/alerts/${id}/status`, { status, note });
   return res.data;
+}
+
+export async function exportAlerts(params = {}) {
+  await downloadCsv("/alerts/export", params, "alerts.csv");
 }
 
 export function useAlerts(filters, page) {

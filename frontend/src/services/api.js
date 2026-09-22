@@ -38,4 +38,19 @@ function getApiError(error) {
   return error.message || "Something went wrong. Please try again.";
 }
 
+export async function downloadCsv(url, params = {}, fallbackName) {
+  const res = await api.get(url, { params, responseType: "blob" });
+  const disposition = res.headers["content-disposition"] || "";
+  const match = disposition.match(/filename="?([^";]+)"?/);
+  const filename = match ? match[1] : fallbackName;
+  const blobUrl = window.URL.createObjectURL(res.data);
+  const link = document.createElement("a");
+  link.href = blobUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(blobUrl);
+}
+
 export { api, getApiError };

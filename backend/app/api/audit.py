@@ -8,7 +8,7 @@ when.
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -17,10 +17,13 @@ from app.database import get_db
 from app.models.audit import AuditLog
 from app.models.user import User
 from app.schemas.audit import AuditLogListResponse, AuditLogOut
+from app.services.export import csv_response
 
 router = APIRouter(prefix="/audit-logs", tags=["audit"])
 
 DbSession = Annotated[Session, Depends(get_db)]
+
+EXPORT_MAX_ROWS = 50_000
 
 
 @router.get("", response_model=AuditLogListResponse, summary="List audit log entries (admin)")
@@ -67,4 +70,58 @@ def list_audit_logs(
     )
     return AuditLogListResponse(
         total=total, items=[AuditLogOut.model_validate(entry) for entry in items]
+    )
+
+
+@router.get("/export", summary="Export audit log as CSV (admin)")
+def export_audit_logs(
+    db: DbSession,
+    _user: Annotated[User, Depends(require_admin)],
+    action: str | None = Query(default=None, max_length=60),
+    username: str | None = Query(default=None, max_length=50),
+    resource_type: str | None = Query(default=None, max_length=40),
+    search: str | None = Query(default=None, max_length=200),
+    from_time: datetime | None = Query(default=None),
+    to_time: datetime | None = Query(default=None),
+) -> Response:
+    """CSV export honouring the same filters as the audit trail, newest first."""
+    query = db.query(AuditLog)
+    if action:
+        query = query.filter(AuditLog.action == action)
+    if username:
+        query = query.filter(AuditLog.username.ilike(f"%{username}%"))
+    if resource_type:
+        query = query.filter(AuditLog.resource_type == resource_type)
+    if search:
+        pattern = f"%{search}%"
+        query = query.filter(
+            or_(
+                AuditLog.username.ilike(pattern),
+                AuditLog.action.ilike(pattern),
+                AuditLog.resource_id.ilike(pattern),
+            )
+        )
+    if from_time:
+        query = query.filter(AuditLog.timestamp >= from_time)
+    if to_time:
+        query = query.filter(AuditLog.timestamp <= to_time)
+
+    rows = []
+    for entry in query.order_by(AuditLog.timestamp.desc(), AuditLog.id.desc()).limit(EXPORT_MAX_ROWS):
+        rows.append(
+            [
+                entry.id,
+                entry.timestamp.isoformat(),
+                entry.username or "",
+                entry.action,
+                entry.resource_type or "",
+                entry.resource_id or "",
+                entry.ip_address or "",
+                (entry.details or {}),
+            ]
+        )
+    return csv_response(
+        "audit-logs.csv",
+        ["id", "timestamp", "username", "action", "resource_type", "resource_id", "ip_address", "details"],
+        rows,
     )

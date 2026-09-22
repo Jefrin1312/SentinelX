@@ -3,7 +3,7 @@ import LoadingSpinner from "../components/LoadingSpinner.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import EmptyState from "../components/EmptyState.jsx";
 import { formatTime } from "../utils/format.js";
-import { fetchAuditLogs } from "../services/audit.js";
+import { fetchAuditLogs, exportAuditLogs } from "../services/audit.js";
 import { getApiError } from "../services/api.js";
 
 const PAGE_SIZES = [25, 50, 100];
@@ -17,6 +17,20 @@ export default function AuditLogs() {
   const [data, setData] = useState({ total: 0, items: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+
+  const download = async () => {
+    setExporting(true);
+    setExportError("");
+    try {
+      await exportAuditLogs(applied);
+    } catch {
+      setExportError("Export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -109,6 +123,10 @@ export default function AuditLogs() {
           <div className="card-header">
             <h3 className="card-title">Entries ({data.total})</h3>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button className="btn btn-outline btn-sm" disabled={exporting} onClick={download}>
+                {exporting ? "Exporting…" : "Export CSV"}
+              </button>
+              {exportError && <span className="dim-cell">{exportError}</span>}
               <select
                 value={page.limit}
                 onChange={(e) => setPage({ limit: Number(e.target.value), offset: 0 })}

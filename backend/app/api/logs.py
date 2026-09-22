@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -23,10 +23,13 @@ from app.models.event import Event
 from app.models.user import User
 from app.schemas.event import EventListResponse, EventOut, LogIngestBatch, LogIngestResponse
 from app.services.audit import write_audit
+from app.services.export import csv_response
 
 router = APIRouter(prefix="/logs", tags=["logs"])
 
 DbSession = Annotated[Session, Depends(get_db)]
+
+EXPORT_MAX_ROWS = 50_000
 
 
 def _sanitise_filename(filename: str) -> str:
@@ -191,6 +194,70 @@ def list_events(
         .all()
     )
     return EventListResponse(total=total, items=[EventOut.model_validate(e) for e in items])
+
+
+@router.get("/export", summary="Export events as CSV")
+def export_events(
+    db: DbSession,
+    _user: Annotated[User, Depends(require_analyst)],
+    search: str | None = Query(default=None, max_length=200),
+    event_type: str | None = Query(default=None, max_length=80),
+    source: str | None = Query(default=None, max_length=30),
+    source_ip: str | None = Query(default=None, max_length=45),
+    username: str | None = Query(default=None, max_length=100),
+    status: str | None = Query(default=None, max_length=30),
+    severity: str | None = Query(default=None, max_length=20),
+    from_time: datetime | None = Query(default=None),
+    to_time: datetime | None = Query(default=None),
+) -> Response:
+    """CSV export honouring the same filters as the event list, newest first."""
+    query = db.query(Event)
+    if search:
+        pattern = f"%{search}%"
+        query = query.filter(
+            or_(
+                Event.message.ilike(pattern),
+                Event.source_ip.ilike(pattern),
+                Event.username.ilike(pattern),
+            )
+        )
+    if event_type:
+        query = query.filter(Event.event_type == event_type)
+    if source:
+        query = query.filter(Event.source == source)
+    if source_ip:
+        query = query.filter(Event.source_ip == source_ip)
+    if username:
+        query = query.filter(Event.username == username)
+    if status:
+        query = query.filter(Event.status == status)
+    if severity:
+        query = query.filter(Event.severity == severity)
+    if from_time:
+        query = query.filter(Event.timestamp >= from_time)
+    if to_time:
+        query = query.filter(Event.timestamp <= to_time)
+
+    rows = []
+    for event in query.order_by(Event.timestamp.desc(), Event.id.desc()).limit(EXPORT_MAX_ROWS):
+        rows.append(
+            [
+                event.id,
+                event.timestamp.isoformat(),
+                event.event_type,
+                event.source_ip or "",
+                event.username or "",
+                event.status or "",
+                event.severity or "",
+                event.source or "",
+                event.message or "",
+            ]
+        )
+    return csv_response(
+        "events.csv",
+        ["id", "timestamp", "event_type", "source_ip", "username", "status", "severity", "source", "message"],
+        rows,
+    )
 
 
 @router.get("/{event_id}", response_model=EventOut, summary="Get a security event")

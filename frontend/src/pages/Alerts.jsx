@@ -6,7 +6,7 @@ import EmptyState from "../components/EmptyState.jsx";
 import SeverityBadge from "../components/SeverityBadge.jsx";
 import StatusBadge from "../components/StatusBadge.jsx";
 import { formatTime } from "../utils/format.js";
-import { fetchAlerts } from "../services/alerts.js";
+import { fetchAlerts, exportAlerts } from "../services/alerts.js";
 import { getApiError } from "../services/api.js";
 
 const STATUSES = ["OPEN", "INVESTIGATING", "RESOLVED"];
@@ -27,6 +27,20 @@ export default function Alerts() {
   const [data, setData] = useState({ total: 0, items: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+
+  const download = async () => {
+    setExporting(true);
+    setExportError("");
+    try {
+      await exportAlerts(applied);
+    } catch {
+      setExportError("Export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -129,6 +143,10 @@ export default function Alerts() {
           <div className="card-header">
             <h3 className="card-title">Alerts ({data.total})</h3>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button className="btn btn-outline btn-sm" disabled={exporting} onClick={download}>
+                {exporting ? "Exporting…" : "Export CSV"}
+              </button>
+              {exportError && <span className="dim-cell">{exportError}</span>}
               <select
                 value={page.limit}
                 onChange={(e) => setPage({ limit: Number(e.target.value), offset: 0 })}

@@ -10,6 +10,7 @@ import {
   ingestLines,
   uploadLogFile,
   importSample,
+  exportEvents,
 } from "../services/logs.js";
 import { getApiError } from "../services/api.js";
 
@@ -55,6 +56,20 @@ export default function Logs() {
   const [actionError, setActionError] = useState("");
   const [actionNotice, setActionNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+
+  const download = async () => {
+    setExporting(true);
+    setExportError("");
+    try {
+      await exportEvents(applied);
+    } catch {
+      setExportError("Export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const { data, loading, error } = useLogs(applied, page);
   const pageNum = Math.floor(page.offset / page.limit) + 1;
@@ -246,6 +261,10 @@ export default function Logs() {
           <div className="card-header">
             <h3 className="card-title">Events ({data.total})</h3>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button className="btn btn-outline btn-sm" disabled={exporting} onClick={download}>
+                {exporting ? "Exporting…" : "Export CSV"}
+              </button>
+              {exportError && <span className="dim-cell">{exportError}</span>}
               <select
                 value={page.limit}
                 onChange={(e) => setPage({ limit: Number(e.target.value), offset: 0 })}
