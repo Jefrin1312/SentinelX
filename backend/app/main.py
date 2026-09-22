@@ -5,14 +5,25 @@ handlers. Authentication, DDoS-safe rate limits and role based access control
 are layered on top of the routers defined here.
 """
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import health
+from app import bootstrap
+from app.api import auth, health, users
 from app.config import get_settings
 
 settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """On startup, ensure tables exist and demo users are seeded."""
+    bootstrap.init_db()
+    yield
+
 
 app = FastAPI(
     title="SentinelX API",
@@ -20,10 +31,11 @@ app = FastAPI(
         "Security Log Analysis and Threat Detection Platform. "
         "Ingest, normalise, detect, investigate and report on security events."
     ),
-    version="0.1.0",
+    version="0.2.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
+    lifespan=lifespan,
 )
 
 
@@ -46,6 +58,8 @@ app.add_middleware(
 )
 
 app.include_router(health.router, prefix=settings.API_PREFIX)
+app.include_router(auth.router, prefix=settings.API_PREFIX)
+app.include_router(users.router, prefix=settings.API_PREFIX)
 
 
 @app.get("/", include_in_schema=False)
