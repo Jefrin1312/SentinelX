@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import require_analyst
 from app.config import get_settings
 from app.database import get_db
-from app.logs.collector import ingest_lines
+from app.logs.collector import ingest_lines, split_recognized_lines
 from app.models.alert import Alert
 from app.models.audit import AuditAction
 from app.models.event import Event
@@ -33,13 +33,41 @@ DbSession = Annotated[Session, Depends(get_db)]
 
 EXPORT_MAX_ROWS = 50_000
 
+# Only plain text log files are accepted from untrusted uploads. Sample
+# imports are trusted application assets and are NOT subject to this list.
+SUPPORTED_LOG_EXTENSIONS = {".log", ".txt"}
+
 
 def _sanitise_filename(filename: str) -> str:
     """Return a safe basename — never trust an uploaded filename."""
     return Path(filename or "upload.log").name[:120]
 
 
-def _validate_bytes(raw: bytes) -> str:
+def _looks_binary(raw: bytes, text: str) -> bool:
+    """Heuristic check for binary content hiding behind a text filename."""
+    sample = raw[:8192]
+    if b"\x00" in sample:
+        return True
+    if not text:
+        return False
+    text_sample = text[:8192]
+    unprintable = sum(1 for ch in text_sample if ch < " " and ch not in "\t\n\r\f\v")
+    return unprintable > len(text_sample) * 0.3
+
+
+def _validate_uploaded_file(filename: str, raw: bytes) -> str:
+    """Validate an uploaded log file and return safe decoded text.
+
+    Applies extension, size, emptiness and binary-content checks. Raises an
+    ``HTTPException`` with a user-facing message on any invalid input so no
+    downstream parsing or storage ever sees an unacceptable file.
+    """
+    if not filename or Path(filename).suffix.lower() not in SUPPORTED_LOG_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported file type. Please upload a .log or .txt security log.",
+        )
+
     settings = get_settings()
     limit = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     if len(raw) > limit:
@@ -47,7 +75,19 @@ def _validate_bytes(raw: bytes) -> str:
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"Upload exceeds the {settings.MAX_UPLOAD_SIZE_MB} MB limit.",
         )
-    return raw.decode("utf-8", errors="replace")
+    if not raw:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The uploaded file is empty.",
+        )
+
+    text = raw.decode("utf-8", errors="replace")
+    if _looks_binary(raw, text):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The uploaded file could not be read as a text log.",
+        )
+    return text
 
 
 @router.post("/ingest", response_model=LogIngestResponse, status_code=201, summary="Ingest raw log lines")
@@ -83,35 +123,52 @@ async def upload_logs(
 ) -> LogIngestResponse:
     """Upload a plain-text log file for parsing.
 
-    The file is validated by size and encoding. The filename is **not**
-    trusted: only its basename is retained and the content is treated purely
-    as data — nothing is ever executed.
+    The file must be a ``.log`` or ``.txt`` text file containing at least one
+    recognisable security-log entry. Unsupported, empty, unreadable/binary and
+    completely unparseable files are rejected before any event is stored. The
+    filename is **not** trusted: only its basename is retained and content is
+    treated purely as data — nothing is ever executed.
     """
-    settings = get_settings()
+    filename = (file.filename or "").strip()
     raw = await file.read()
-    contents = _validate_bytes(raw)
-    safe_name = _sanitise_filename(file.filename)
+    contents = _validate_uploaded_file(filename, raw)
+    safe_name = _sanitise_filename(filename)
 
     lines = contents.splitlines()
+    settings = get_settings()
     if len(lines) > settings.MAX_UPLOAD_LINES:
         raise HTTPException(
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"Upload exceeds the {settings.MAX_UPLOAD_LINES} line limit.",
         )
 
+    recognized, skipped = split_recognized_lines(lines)
+    if not recognized:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No recognizable security log entries were found in this file.",
+        )
+
     result = ingest_lines(
         db,
-        lines,
+        recognized,
         user_id=_user.id,
         source="FILE",
     )
+    result["total_lines"] = len(recognized) + skipped
+    result["lines_skipped"] = skipped
     write_audit(
         db,
         user=_user,
         action=AuditAction.LOGS_INGESTED,
         resource_type="file_upload",
         resource_id=safe_name,
-        details={"parsed": result["parsed"], "unknown": result["unknown"], "lines": len(lines)},
+        details={
+            "parsed": result["parsed"],
+            "unknown": result["unknown"],
+            "lines_skipped": skipped,
+            "lines": len(lines),
+        },
     )
     return LogIngestResponse(**result)
 

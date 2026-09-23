@@ -117,9 +117,114 @@ def test_upload_parses_file(client, auth_headers) -> None:
     )
     assert response.status_code == 201
     body = response.json()
-    assert body["events_created"] == 2
+    # Recognised SSH line is stored; the unparseable line is skipped, not
+    # turned into an UNKNOWN placeholder event.
+    assert body["events_created"] == 1
     assert body["parsed"] == 1
-    assert body["unknown"] == 1
+    assert body["unknown"] == 0
+    assert body["lines_skipped"] == 1
+
+
+def test_upload_accepts_txt_extension(client, auth_headers) -> None:
+    marker = _marker()
+    response = client.post(
+        "/api/logs/upload",
+        files={"file": ("events.txt", f"Accepted password for alice from 10.0.0.2 port 1 ssh2 {marker}".encode(), "text/plain")},
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+    assert response.json()["events_created"] == 1
+
+
+def test_upload_rejects_empty_file(client, auth_headers) -> None:
+    response = client.post(
+        "/api/logs/upload",
+        files={"file": ("empty.log", b"", "text/plain")},
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+    assert "empty" in response.json()["detail"].lower()
+
+
+def test_upload_rejects_unrecognizable_text(client, auth_headers) -> None:
+    marker = _marker()
+    content = f"hello world {marker}\nthis is a random file {marker}\n123456 {marker}\n".encode()
+    response = client.post(
+        "/api/logs/upload",
+        files={"file": ("random.txt", content, "text/plain")},
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+    assert "no recognizable" in response.json()["detail"].lower()
+    # Nothing was stored.
+    listing = client.get("/api/logs", params={"search": marker}, headers=auth_headers)
+    assert listing.json()["total"] == 0
+
+
+def test_upload_rejects_unsupported_extension(client, auth_headers) -> None:
+    response = client.post(
+        "/api/logs/upload",
+        files={"file": ("scan.pdf", b"%PDF-1.7 fake", "application/pdf")},
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+    assert "unsupported file type" in response.json()["detail"].lower()
+
+
+def test_upload_rejects_binary_content(client, auth_headers) -> None:
+    marker = _marker()
+    response = client.post(
+        "/api/logs/upload",
+        files={"file": ("image.png.txt", b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00", "application/octet-stream")},
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+    assert "text log" in response.json()["detail"].lower()
+
+    listing = client.get("/api/logs", params={"search": marker}, headers=auth_headers)
+    assert listing.json()["total"] == 0
+
+
+def test_uploaded_events_belong_to_authenticated_user(client, auth_headers) -> None:
+    marker = _marker()
+    response = client.post(
+        "/api/logs/upload",
+        files={"file": ("user.log", f"Failed password for admin from 198.51.100.9 port 1 ssh2 {marker}".encode(), "text/plain")},
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+    event_id = response.json()["event_ids"][0]
+    # A second, unrelated user must never see the uploader's events.
+    other = client.post(
+        "/api/auth/register",
+        json={
+            "username": f"other_{_marker()[:8]}",
+            "email": f"other_{_marker()[:8]}@example.com",
+            "password": "Str0ngPass!word",
+        },
+    )
+    other_headers = {"Authorization": f"Bearer {other.json()['access_token']}"}
+    assert other.status_code == 201
+    listing = client.get("/api/logs", params={"search": marker}, headers=other_headers)
+    assert listing.json()["total"] == 0
+    detail = client.get(f"/api/logs/{event_id}", headers=other_headers)
+    assert detail.status_code == 404
+
+
+def test_clear_my_imported_data_removes_uploaded_events(client, auth_headers) -> None:
+    marker = _marker()
+    response = client.post(
+        "/api/logs/upload",
+        files={"file": ("mine.log", f"Failed password for admin from 203.0.113.88 port 1 ssh2 {marker}".encode(), "text/plain")},
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+    assert client.get("/api/logs", params={"search": marker}, headers=auth_headers).json()["total"] == 1
+
+    cleared = client.delete("/api/logs/mine", headers=auth_headers)
+    assert cleared.status_code == 200
+    assert cleared.json()["events_deleted"] == 1
+    assert client.get("/api/logs", params={"search": marker}, headers=auth_headers).json()["total"] == 0
 
 
 def test_upload_rejects_huge_payload(client, auth_headers) -> None:

@@ -15,10 +15,30 @@ from sqlalchemy.orm import Session
 
 from app.detection.engine import detect
 from app.logs.normalizer import normalize
-from app.logs.parser import ParsedLog, parse_log_line
+from app.logs.parser import UNKNOWN_TYPE, ParsedLog, parse_log_line
 from app.models.event import Event
 
 logger = logging.getLogger("sentinelx.collector")
+
+
+def split_recognized_lines(lines: list[str]) -> tuple[list[str], int]:
+    """Partition raw lines into recognised entries and skipped noise.
+
+    Uploaded files must not become UNKNOWN placeholder events for content the
+    parser cannot describe, so unrecognised non-empty lines are counted as
+    ``skipped`` instead of being stored. Blank lines are ignored entirely.
+    """
+    recognized: list[str] = []
+    skipped = 0
+    for raw in lines:
+        line = _safe_text(raw.strip())
+        if not line:
+            continue
+        if parse_log_line(line).event_type == UNKNOWN_TYPE:
+            skipped += 1
+        else:
+            recognized.append(line)
+    return recognized, skipped
 
 
 def ingest_lines(

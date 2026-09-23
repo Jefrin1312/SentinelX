@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 
+from app.logs.collector import split_recognized_lines
 from app.logs.normalizer import normalize
 from app.logs.parser import parse_log_line
 
@@ -150,3 +151,26 @@ def test_syslog_prefix_timestamp_extracted() -> None:
     assert parsed.timestamp.minute == 34
     assert parsed.timestamp.second == 11
     assert parsed.timestamp.tzinfo is not None
+
+
+def test_split_recognized_lines_partitions_entries() -> None:
+    recognized, skipped = split_recognized_lines(
+        [
+            "Failed password for admin from 203.0.113.10 port 52347 ssh2",
+            "   ",
+            "hello world, this is not a log",
+            "this is a random file",
+            "alice : TTY=tty1 ; PWD=/home/alice ; USER=root ; COMMAND=/bin/ls",
+        ]
+    )
+    assert recognized == [
+        "Failed password for admin from 203.0.113.10 port 52347 ssh2",
+        "alice : TTY=tty1 ; PWD=/home/alice ; USER=root ; COMMAND=/bin/ls",
+    ]
+    assert skipped == 2
+
+
+def test_split_recognized_lines_all_skipped_when_nothing_matches() -> None:
+    recognized, skipped = split_recognized_lines(["hello world", "123456", "garbage"])
+    assert recognized == []
+    assert skipped == 3

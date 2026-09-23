@@ -67,4 +67,5 @@ class LogIngestResponse(BaseModel):
     unknown: int
     events_created: int
     alerts_created: int
+    lines_skipped: int = 0
     event_ids: list[int] = Field(default_factory=list)

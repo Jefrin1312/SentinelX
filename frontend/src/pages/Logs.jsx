@@ -90,8 +90,11 @@ export default function Logs() {
     try {
       const res = await promise;
       const alertCount = res.alerts_created ?? 0;
+      const parts = [`${res.parsed} recognised`];
+      if (res.unknown > 0) parts.push(`${res.unknown} unknown`);
+      if (res.lines_skipped > 0) parts.push(`${res.lines_skipped} skipped`);
       setActionNotice(
-        `${res.events_created} events parsed (${res.parsed} recognised, ${res.unknown} unknown)${alertCount ? ` and ${alertCount} alert${alertCount === 1 ? "" : "s"} raised.` : "."}`
+        `${res.events_created} events parsed (${parts.join(", ")})${alertCount ? ` and ${alertCount} alert${alertCount === 1 ? "" : "s"} raised.` : "."}`
       );
       setPage((p) => ({ ...p, offset: 0 }));
     } catch (err) {
@@ -229,6 +232,7 @@ export default function Logs() {
               Upload file
               <input
                 type="file"
+                accept=".log,.txt"
                 style={{ display: "none" }}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
