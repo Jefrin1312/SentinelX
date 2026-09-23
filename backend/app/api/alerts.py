@@ -60,7 +60,7 @@ def list_alerts(
     limit: int = Query(default=50, ge=1, le=500),
 ) -> AlertListResponse:
     """Searchable, filterable, paginated alert list ordered newest first."""
-    query = db.query(Alert)
+    query = db.query(Alert).filter(Alert.user_id == _user.id)
     if status_filter:
         query = query.filter(Alert.status == status_filter)
     if severity:
@@ -106,7 +106,7 @@ def export_alerts(
     to_time: datetime | None = Query(default=None),
 ) -> Response:
     """CSV export honouring the same filters as the alert list, newest first."""
-    query = db.query(Alert)
+    query = db.query(Alert).filter(Alert.user_id == _user.id)
     if status_filter:
         query = query.filter(Alert.status == status_filter)
     if severity:
@@ -159,7 +159,14 @@ def get_alert(
     _user: Annotated[User, Depends(require_analyst)],
 ) -> AlertDetailOut:
     """Full alert detail including the related event and its investigation."""
-    alert = db.query(Alert).filter(Alert.id == alert_id).first()
+    alert = (
+        db.query(Alert)
+        .filter(
+            Alert.id == alert_id,
+            Alert.user_id == _user.id,
+        )
+        .first()
+    )
     if alert is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found.")
 
@@ -185,7 +192,14 @@ def update_alert_status(
     user: Annotated[User, Depends(require_analyst)],
 ) -> AlertOut:
     """Move an alert through the OPEN / INVESTIGATING / RESOLVED lifecycle."""
-    alert = db.query(Alert).filter(Alert.id == alert_id).first()
+    alert = (
+        db.query(Alert)
+        .filter(
+            Alert.id == alert_id,
+            Alert.user_id == user.id,
+        )
+        .first()
+    )
     if alert is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found.")
 

@@ -68,7 +68,14 @@ def create_investigation(
     user: Annotated[User, Depends(require_analyst)],
 ) -> InvestigationOut:
     """Open a new investigation on an alert (promotes the alert to INVESTIGATING)."""
-    alert = db.query(Alert).filter(Alert.id == payload.alert_id).first()
+    alert = (
+        db.query(Alert)
+        .filter(
+            Alert.id == payload.alert_id,
+            Alert.user_id == user.id,
+        )
+        .first()
+    )
     if alert is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found.")
     existing = (

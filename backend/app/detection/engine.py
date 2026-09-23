@@ -112,6 +112,7 @@ def _evaluate_rule(db: Session, rule: DetectionRule, event: Event) -> Alert | No
     existing = (
         db.query(Alert)
         .filter(
+            Alert.user_id == event.user_id,
             Alert.rule_id == rule.id,
             Alert.status == AlertStatus.OPEN,
             Alert.metadata_json["key"].as_string() == key,
@@ -127,6 +128,7 @@ def _evaluate_rule(db: Session, rule: DetectionRule, event: Event) -> Alert | No
 
     alert = Alert(
         event_id=event.id,
+        user_id=event.user_id,
         rule_id=rule.id,
         alert_type=rule.name[:80],
         severity=rule.severity.upper(),

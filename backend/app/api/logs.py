@@ -18,8 +18,10 @@ from app.auth.dependencies import require_analyst
 from app.config import get_settings
 from app.database import get_db
 from app.logs.collector import ingest_lines
+from app.models.alert import Alert
 from app.models.audit import AuditAction
 from app.models.event import Event
+from app.models.investigation import Investigation
 from app.models.user import User
 from app.schemas.event import EventListResponse, EventOut, LogIngestBatch, LogIngestResponse
 from app.services.audit import write_audit
@@ -55,7 +57,12 @@ def ingest_logs(
     _user: Annotated[User, Depends(require_analyst)],
 ) -> LogIngestResponse:
     """Parse a batch of raw log lines, store normalised events, and count unknowns."""
-    result = ingest_lines(db, payload.lines, source=payload.source)
+    result = ingest_lines(
+        db,
+        payload.lines,
+        user_id=_user.id,
+        source=payload.source,
+    )
     if result["events_created"] > 0 or result["unknown"] > 0:
         write_audit(
             db,
@@ -92,7 +99,12 @@ async def upload_logs(
             detail=f"Upload exceeds the {settings.MAX_UPLOAD_LINES} line limit.",
         )
 
-    result = ingest_lines(db, lines, source="FILE")
+    result = ingest_lines(
+        db,
+        lines,
+        user_id=_user.id,
+        source="FILE",
+    )
     write_audit(
         db,
         user=_user,
@@ -130,7 +142,12 @@ def import_sample(
         )
 
     lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
-    result = ingest_lines(db, lines, source=f"SAMPLE:{sample}")
+    result = ingest_lines(
+        db,
+        lines,
+        user_id=_user.id,
+        source=f"SAMPLE:{sample}",
+    )
     write_audit(
         db,
         user=_user,
@@ -159,7 +176,7 @@ def list_events(
     limit: int = Query(default=50, ge=1, le=500),
 ) -> EventListResponse:
     """Searchable, filterable, paginated event list backed by database queries."""
-    query = db.query(Event)
+    query = db.query(Event).filter(Event.user_id == _user.id)
     if search:
         pattern = f"%{search}%"
         query = query.filter(
@@ -211,7 +228,7 @@ def export_events(
     to_time: datetime | None = Query(default=None),
 ) -> Response:
     """CSV export honouring the same filters as the event list, newest first."""
-    query = db.query(Event)
+    query = db.query(Event).filter(Event.user_id == _user.id)
     if search:
         pattern = f"%{search}%"
         query = query.filter(
@@ -266,7 +283,54 @@ def get_event(
     db: DbSession,
     _user: Annotated[User, Depends(require_analyst)],
 ) -> EventOut:
-    event = db.query(Event).filter(Event.id == event_id).first()
+    event = (
+        db.query(Event)
+        .filter(
+            Event.id == event_id,
+            Event.user_id == _user.id,
+        )
+        .first()
+    )
     if event is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
     return EventOut.model_validate(event)
+
+
+@router.delete(
+    "/mine",
+    summary="Clear my imported security data",
+)
+def clear_my_imported_data(
+    db: DbSession,
+    _user: Annotated[User, Depends(require_analyst)],
+) -> dict:
+    """Delete only the current user's imported events, alerts, and investigations."""
+
+    alerts = (
+        db.query(Alert)
+        .filter(Alert.user_id == _user.id)
+        .all()
+    )
+
+    events = (
+        db.query(Event)
+        .filter(Event.user_id == _user.id)
+        .all()
+    )
+
+    alert_count = len(alerts)
+    event_count = len(events)
+
+    for alert in alerts:
+        db.delete(alert)
+
+    for event in events:
+        db.delete(event)
+
+    db.commit()
+
+    return {
+        "status": "ok",
+        "events_deleted": event_count,
+        "alerts_deleted": alert_count,
+    }

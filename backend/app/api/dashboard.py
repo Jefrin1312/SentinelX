@@ -48,15 +48,48 @@ def dashboard_summary(
     now = datetime.now(timezone.utc)
     since_24h = now - timedelta(hours=HOURS_WINDOW)
 
-    total_events = db.query(func.count(Event.id)).scalar()
-    total_alerts = db.query(func.count(Alert.id)).scalar()
-    events_recent = db.query(func.count(Event.id)).filter(Event.timestamp >= since_24h).scalar()
-    alerts_recent = db.query(func.count(Alert.id)).filter(Alert.created_at >= since_24h).scalar()
+    total_events = (
+        db.query(func.count(Event.id))
+        .filter(Event.user_id == _user.id)
+        .scalar()
+    )
+
+    total_alerts = (
+        db.query(func.count(Alert.id))
+        .filter(Alert.user_id == _user.id)
+        .scalar()
+    )
+
+    events_recent = (
+        db.query(func.count(Event.id))
+        .filter(
+            Event.user_id == _user.id,
+            Event.timestamp >= since_24h,
+        )
+        .scalar()
+    )
+
+    alerts_recent = (
+        db.query(func.count(Alert.id))
+        .filter(
+            Alert.user_id == _user.id,
+            Alert.created_at >= since_24h,
+        )
+        .scalar()
+    )
 
     severity_counts = {
-        s: db.query(func.count(Alert.id)).filter(Alert.severity == s).scalar()
+        s: (
+            db.query(func.count(Alert.id))
+            .filter(
+                Alert.user_id == _user.id,
+                Alert.severity == s,
+            )
+            .scalar()
+        )
         for s in Severity.ALL
     }
+
     severity = SeverityCounts(
         low=severity_counts.get(Severity.LOW, 0),
         medium=severity_counts.get(Severity.MEDIUM, 0),
@@ -65,36 +98,85 @@ def dashboard_summary(
     )
 
     status_counts = {
-        "open": db.query(func.count(Alert.id)).filter(Alert.status == "OPEN").scalar(),
-        "investigating": db.query(func.count(Alert.id)).filter(Alert.status == "INVESTIGATING").scalar(),
-        "resolved": db.query(func.count(Alert.id)).filter(Alert.status == "RESOLVED").scalar(),
+        "open": (
+            db.query(func.count(Alert.id))
+            .filter(
+                Alert.user_id == _user.id,
+                Alert.status == "OPEN",
+            )
+            .scalar()
+        ),
+        "investigating": (
+            db.query(func.count(Alert.id))
+            .filter(
+                Alert.user_id == _user.id,
+                Alert.status == "INVESTIGATING",
+            )
+            .scalar()
+        ),
+        "resolved": (
+            db.query(func.count(Alert.id))
+            .filter(
+                Alert.user_id == _user.id,
+                Alert.status == "RESOLVED",
+            )
+            .scalar()
+        ),
     }
+
     status = StatusCounts(**status_counts)
 
     ip_rows = (
-        db.query(Event.source_ip, func.count(Event.id).label("cnt"))
-        .filter(Event.source_ip.isnot(None))
+        db.query(
+            Event.source_ip,
+            func.count(Event.id).label("cnt"),
+        )
+        .filter(
+            Event.user_id == _user.id,
+            Event.source_ip.isnot(None),
+        )
         .group_by(Event.source_ip)
         .order_by(func.count(Event.id).desc())
         .limit(8)
         .all()
     )
-    top_source_ips = [IpCount(source_ip=ip, count=cnt) for ip, cnt in ip_rows]
+
+    top_source_ips = [
+        IpCount(source_ip=ip, count=cnt)
+        for ip, cnt in ip_rows
+    ]
 
     type_rows = (
-        db.query(Event.event_type, func.count(Event.id).label("cnt"))
+        db.query(
+            Event.event_type,
+            func.count(Event.id).label("cnt"),
+        )
+        .filter(Event.user_id == _user.id)
         .group_by(Event.event_type)
         .order_by(func.count(Event.id).desc())
         .limit(8)
         .all()
     )
-    top_event_types = [TypeCount(event_type=t, count=cnt) for t, cnt in type_rows]
+
+    top_event_types = [
+        TypeCount(event_type=t, count=cnt)
+        for t, cnt in type_rows
+    ]
 
     recent_events = (
-        db.query(Event).order_by(Event.timestamp.desc()).limit(50).all()
+        db.query(Event)
+        .filter(Event.user_id == _user.id)
+        .order_by(Event.timestamp.desc())
+        .limit(50)
+        .all()
     )
+
     recent_alerts = (
-        db.query(Alert).order_by(Alert.created_at.desc()).limit(20).all()
+        db.query(Alert)
+        .filter(Alert.user_id == _user.id)
+        .order_by(Alert.created_at.desc())
+        .limit(20)
+        .all()
     )
 
     return DashboardSummary(
@@ -129,13 +211,13 @@ def dashboard_timeline(
 
     event_rows = (
         db.query(utc_bucket(Event.timestamp).label("bucket"), func.count(Event.id))
-        .filter(Event.timestamp >= since)
+        .filter(Event.user_id == _user.id, Event.timestamp >= since)
         .group_by("bucket")
         .all()
     )
     alert_rows = (
         db.query(utc_bucket(Alert.created_at).label("bucket"), Alert.severity, func.count(Alert.id))
-        .filter(Alert.created_at >= since)
+        .filter(Alert.user_id == _user.id, Alert.created_at >= since)
         .group_by("bucket", Alert.severity)
         .all()
     )

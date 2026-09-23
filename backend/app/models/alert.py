@@ -35,6 +35,11 @@ class Alert(Base):
     __tablename__ = "alerts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
     event_id: Mapped[int | None] = mapped_column(ForeignKey("events.id", ondelete="SET NULL"))
     rule_id: Mapped[int | None] = mapped_column(ForeignKey("detection_rules.id", ondelete="SET NULL"))
     alert_type: Mapped[str] = mapped_column(String(80), index=True)

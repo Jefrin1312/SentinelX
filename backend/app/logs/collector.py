@@ -25,6 +25,7 @@ def ingest_lines(
     db: Session,
     lines: list[str],
     *,
+    user_id: int,
     source: str = "MANUAL",
     timestamp: datetime | None = None,
     on_parsed: Callable[[ParsedLog], None] | None = None,
@@ -71,6 +72,7 @@ def ingest_lines(
         # reserved name on SQLAlchemy declarative classes).
         event_dto["metadata_json"] = event_dto.pop("metadata")
         event_dto["source"] = source
+        event_dto["user_id"] = user_id
         event = Event(**event_dto)
         db.add(event)
         db.flush()  # populate the id so batch results are accurate
