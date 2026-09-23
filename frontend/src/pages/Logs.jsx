@@ -2,6 +2,7 @@ import { useState } from "react";
 import LoadingSpinner from "../components/LoadingSpinner.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import EmptyState from "../components/EmptyState.jsx";
+import ConfirmDialog from "../components/ConfirmDialog.jsx";
 import SeverityBadge from "../components/SeverityBadge.jsx";
 import StatusBadge from "../components/StatusBadge.jsx";
 import { formatDateTime } from "../utils/format.js";
@@ -11,6 +12,7 @@ import {
   uploadLogFile,
   importSample,
   exportEvents,
+  clearMyImportedData,
 } from "../services/logs.js";
 import { getApiError } from "../services/api.js";
 
@@ -58,6 +60,12 @@ export default function Logs() {
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [clearError, setClearError] = useState("");
+  const [clearNotice, setClearNotice] = useState("");
 
   const download = async () => {
     setExporting(true);
@@ -71,7 +79,7 @@ export default function Logs() {
     }
   };
 
-  const { data, loading, error } = useLogs(applied, page);
+  const { data, loading, error } = useLogs(applied, page, refreshKey);
   const pageNum = Math.floor(page.offset / page.limit) + 1;
   const totalPages = Math.max(1, Math.ceil(data.total / page.limit));
 
@@ -105,6 +113,25 @@ export default function Logs() {
   };
 
   const updateFilter = (key, value) => setFilters((f) => ({ ...f, [key]: value }));
+
+  const confirmClear = async () => {
+    if (clearing) return;
+    setClearing(true);
+    setClearError("");
+    setClearNotice("");
+    try {
+      await clearMyImportedData();
+      setConfirmOpen(false);
+      setClearNotice("Your imported security data has been cleared.");
+      setSelected(null);
+      setPage((p) => ({ ...p, offset: 0 }));
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      setClearError(getApiError(err));
+    } finally {
+      setClearing(false);
+    }
+  };
 
   return (
     <div className="page-pad">
@@ -245,6 +272,23 @@ export default function Logs() {
         )}
       </div>
 
+      <div className="card">
+        <div className="card-header">
+          <h3 className="card-title">My imported data</h3>
+        </div>
+        <div className="card-body">
+          <p className="dim-cell" style={{ marginBottom: 12 }}>
+            Clear the events, alerts, and investigations you imported. Your account, detection rules, audit
+            information, and other users' data are never touched.
+          </p>
+          <button className="btn btn-danger" disabled={clearing} onClick={() => setConfirmOpen(true)}>
+            {clearing ? "Clearing…" : "Clear My Imported Data"}
+          </button>
+          {clearError && <div style={{ marginTop: 12 }}><ErrorMessage message={clearError} /></div>}
+          {clearNotice && <p className="text-good" style={{ padding: "8px 0" }}>{clearNotice}</p>}
+        </div>
+      </div>
+
       {loading ? (
         <div className="page-center" style={{ minHeight: 160 }}>
           <LoadingSpinner label="Loading events…" />
@@ -355,6 +399,20 @@ export default function Logs() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Clear My Imported Data?"
+        message="This will permanently delete your imported security events, alerts, and related investigation data. It will not delete your account, detection rules, audit information, or other users' data."
+        confirmLabel="Clear My Data"
+        cancelLabel="Cancel"
+        busy={clearing}
+        busyLabel="Clearing…"
+        onConfirm={confirmClear}
+        onCancel={() => {
+          if (!clearing) setConfirmOpen(false);
+        }}
+      />
     </div>
   );
 }

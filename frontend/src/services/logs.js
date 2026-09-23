@@ -29,7 +29,12 @@ export async function importSample(sample) {
   return res.data;
 }
 
-export function useLogs(filters, page) {
+export async function clearMyImportedData() {
+  const res = await api.delete("/logs/mine");
+  return res.data;
+}
+
+export function useLogs(filters, page, refreshKey = 0) {
   const { limit, offset } = page;
   const [data, setData] = useState({ total: 0, items: [] });
   const [loading, setLoading] = useState(true);
@@ -56,7 +61,7 @@ export function useLogs(filters, page) {
     return () => {
       cancelled = true;
     };
-  }, [filters, limit, offset]);
+  }, [filters, limit, offset, refreshKey]);
 
   return { data, loading, error };
 }
