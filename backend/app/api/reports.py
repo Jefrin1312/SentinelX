@@ -13,6 +13,7 @@ from sqlalchemy import Date, func
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import require_analyst
+from app.auth.ipaddr import client_ip
 from app.config import get_settings
 from app.database import get_db
 from app.models.alert import Alert, AlertStatus, Severity
@@ -41,13 +42,6 @@ def _utc_day_bucket(column):
     return func.date_trunc("day", column.op("AT TIME ZONE")("UTC")).cast(Date)
 
 
-def _client_ip(request: Request) -> str | None:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else None
-
-
 @router.get("/summary", response_model=ReportSummary, summary="Reports summary for a date range")
 def report_summary(
     request: Request,
@@ -57,7 +51,7 @@ def report_summary(
     topn: int = Query(default=10, ge=1, le=25),
 ) -> ReportSummary:
     """Ingest/alert totals, daily trends, and breakdowns over the last ``days``."""
-    summary = _build_summary(db, days, topn)
+    summary = _build_summary(db, user, days, topn)
 
     write_audit(
         db,
@@ -65,7 +59,7 @@ def report_summary(
         action=AuditAction.REPORT_GENERATED,
         resource_type="report",
         resource_id="summary",
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
         details={"format": "json", "days": days, "topn": topn},
     )
 
@@ -81,7 +75,7 @@ def report_export(
     topn: int = Query(default=10, ge=1, le=25),
 ) -> Response:
     """Render the same live aggregates as a downloadable PDF security report."""
-    summary = _build_summary(db, days, topn)
+    summary = _build_summary(db, user, days, topn)
     generated_at = datetime.now(timezone.utc)
     payload = generate_report_pdf(summary, get_settings().APP_NAME, generated_at)
 
@@ -91,7 +85,7 @@ def report_export(
         action=AuditAction.REPORT_GENERATED,
         resource_type="report",
         resource_id="pdf",
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
         details={"format": "pdf", "days": days, "topn": topn},
     )
 
@@ -104,16 +98,25 @@ def report_export(
     )
 
 
-def _build_summary(db: Session, days: int, topn: int) -> ReportSummary:
-    """Compute all report aggregates live from the database over ``days``."""
+def _build_summary(db: Session, user: User, days: int, topn: int) -> ReportSummary:
+    """Compute all report aggregates live from the database over ``days``.
+
+    Every value is scoped to the requesting user so a low-privilege analyst
+    never sees another tenant's security posture (matching the isolation used
+    by the dashboard and event/alert lists).
+    """
     now = datetime.now(timezone.utc)
     since = now - timedelta(days=days)
 
     total_events = (
-        db.query(func.count(Event.id)).filter(Event.timestamp >= since).scalar()
+        db.query(func.count(Event.id))
+        .filter(Event.user_id == user.id, Event.timestamp >= since)
+        .scalar()
     )
     total_alerts = (
-        db.query(func.count(Alert.id)).filter(Alert.created_at >= since).scalar()
+        db.query(func.count(Alert.id))
+        .filter(Alert.user_id == user.id, Alert.created_at >= since)
+        .scalar()
     )
     if total_events is None:
         total_events = 0
@@ -123,7 +126,7 @@ def _build_summary(db: Session, days: int, topn: int) -> ReportSummary:
     # Daily zero-filled series for events and (severity-split) alerts.
     event_day_rows = (
         db.query(_utc_day_bucket(Event.timestamp).label("day"), func.count(Event.id))
-        .filter(Event.timestamp >= since)
+        .filter(Event.user_id == user.id, Event.timestamp >= since)
         .group_by("day")
         .all()
     )
@@ -133,7 +136,7 @@ def _build_summary(db: Session, days: int, topn: int) -> ReportSummary:
             Alert.severity,
             func.count(Alert.id),
         )
-        .filter(Alert.created_at >= since)
+        .filter(Alert.user_id == user.id, Alert.created_at >= since)
         .group_by("day", Alert.severity)
         .all()
     )
@@ -167,7 +170,7 @@ def _build_summary(db: Session, days: int, topn: int) -> ReportSummary:
     # Breakdowns.
     alert_type_rows = (
         db.query(Alert.alert_type, func.count(Alert.id).label("cnt"))
-        .filter(Alert.created_at >= since)
+        .filter(Alert.user_id == user.id, Alert.created_at >= since)
         .group_by(Alert.alert_type)
         .order_by(func.count(Alert.id).desc())
         .limit(topn)
@@ -175,19 +178,23 @@ def _build_summary(db: Session, days: int, topn: int) -> ReportSummary:
     )
     severity_rows = (
         db.query(Alert.severity, func.count(Alert.id).label("cnt"))
-        .filter(Alert.created_at >= since)
+        .filter(Alert.user_id == user.id, Alert.created_at >= since)
         .group_by(Alert.severity)
         .all()
     )
     status_rows = (
         db.query(Alert.status, func.count(Alert.id).label("cnt"))
-        .filter(Alert.created_at >= since)
+        .filter(Alert.user_id == user.id, Alert.created_at >= since)
         .group_by(Alert.status)
         .all()
     )
     ip_rows = (
         db.query(Event.source_ip, func.count(Event.id).label("cnt"))
-        .filter(Event.source_ip.isnot(None), Event.timestamp >= since)
+        .filter(
+            Event.user_id == user.id,
+            Event.source_ip.isnot(None),
+            Event.timestamp >= since,
+        )
         .group_by(Event.source_ip)
         .order_by(func.count(Event.id).desc())
         .limit(topn)
@@ -195,7 +202,7 @@ def _build_summary(db: Session, days: int, topn: int) -> ReportSummary:
     )
     event_type_rows = (
         db.query(Event.event_type, func.count(Event.id).label("cnt"))
-        .filter(Event.timestamp >= since)
+        .filter(Event.user_id == user.id, Event.timestamp >= since)
         .group_by(Event.event_type)
         .order_by(func.count(Event.id).desc())
         .limit(topn)
@@ -209,6 +216,7 @@ def _build_summary(db: Session, days: int, topn: int) -> ReportSummary:
             )
         )
         .filter(
+            Alert.user_id == user.id,
             Alert.created_at >= since,
             Alert.status == AlertStatus.RESOLVED,
             Alert.resolved_at.isnot(None),

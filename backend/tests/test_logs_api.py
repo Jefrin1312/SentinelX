@@ -185,7 +185,9 @@ def test_upload_rejects_binary_content(client, auth_headers) -> None:
     assert listing.json()["total"] == 0
 
 
-def test_uploaded_events_belong_to_authenticated_user(client, auth_headers) -> None:
+def test_uploaded_events_belong_to_authenticated_user(
+    client, auth_headers, make_client
+) -> None:
     marker = _marker()
     response = client.post(
         "/api/logs/upload",
@@ -195,7 +197,8 @@ def test_uploaded_events_belong_to_authenticated_user(client, auth_headers) -> N
     assert response.status_code == 201
     event_id = response.json()["event_ids"][0]
     # A second, unrelated user must never see the uploader's events.
-    other = client.post(
+    other = make_client()
+    registered = other.post(
         "/api/auth/register",
         json={
             "username": f"other_{_marker()[:8]}",
@@ -203,11 +206,11 @@ def test_uploaded_events_belong_to_authenticated_user(client, auth_headers) -> N
             "password": "Str0ngPass!word",
         },
     )
-    other_headers = {"Authorization": f"Bearer {other.json()['access_token']}"}
-    assert other.status_code == 201
-    listing = client.get("/api/logs", params={"search": marker}, headers=other_headers)
+    assert registered.status_code == 201
+    other_headers = {"X-CSRF-Token": other.cookies.get("sentinelx_csrf")}
+    listing = other.get("/api/logs", params={"search": marker}, headers=other_headers)
     assert listing.json()["total"] == 0
-    detail = client.get(f"/api/logs/{event_id}", headers=other_headers)
+    detail = other.get(f"/api/logs/{event_id}", headers=other_headers)
     assert detail.status_code == 404
 
 

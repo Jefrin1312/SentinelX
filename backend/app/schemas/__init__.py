@@ -6,7 +6,6 @@ from app.schemas.auth import (
     PasswordChange,
     ProfileUpdate,
     RegisterRequest,
-    TokenResponse,
     UserOut,
 )
 from app.schemas.user import UserActivateRequest, UserListResponse, UserRoleRequest, UserUpdate
@@ -43,7 +42,6 @@ __all__ = [
     "RegisterRequest",
     "LoginRequest",
     "LoginResponse",
-    "TokenResponse",
     "UserOut",
     "ProfileUpdate",
     "PasswordChange",

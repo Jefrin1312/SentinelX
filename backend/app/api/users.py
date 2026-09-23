@@ -7,6 +7,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import AdminUser, CurrentUser
+from app.auth.ipaddr import client_ip
 from app.database import get_db
 from app.models.audit import AuditAction
 from app.models.user import User, UserRole
@@ -16,13 +17,6 @@ from app.services.audit import write_audit
 router = APIRouter(prefix="/users", tags=["users"])
 
 DbSession = Annotated[Session, Depends(get_db)]
-
-
-def _client_ip(request: Request) -> str | None:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else None
 
 
 @router.get("", response_model=UserListResponse, summary="List users (admin)")
@@ -95,7 +89,7 @@ def update_user(
             action=AuditAction.USER_ROLE_CHANGED,
             resource_type="user",
             resource_id=user.id,
-            ip_address=_client_ip(request),
+            ip_address=client_ip(request),
             details={"target": user.username, "role": payload.role},
         )
     if payload.is_active is not None and payload.is_active != user.is_active:
@@ -108,7 +102,7 @@ def update_user(
             action=action,
             resource_type="user",
             resource_id=user.id,
-            ip_address=_client_ip(request),
+            ip_address=client_ip(request),
             details={"target": user.username},
         )
 

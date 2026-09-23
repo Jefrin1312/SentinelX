@@ -134,8 +134,16 @@ def list_investigations(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=500),
 ) -> InvestigationListResponse:
-    """Searchable, filterable, paginated investigation list, newest first."""
-    query = db.query(Investigation)
+    """Searchable, filterable, paginated investigation list, newest first.
+
+    Only the authenticated user's own investigations are returned: visibility
+    is tied to the owner of the linked alert.
+    """
+    query = (
+        db.query(Investigation)
+        .join(Alert, Investigation.alert_id == Alert.id)
+        .filter(Alert.user_id == _user.id)
+    )
     if status_filter:
         query = query.filter(Investigation.status == status_filter)
     if alert_id:
@@ -166,7 +174,13 @@ def get_investigation(
 ) -> InvestigationDetailOut:
     """Full investigation detail including the alert headline and note thread."""
     investigation = (
-        db.query(Investigation).filter(Investigation.id == investigation_id).first()
+        db.query(Investigation)
+        .join(Alert, Investigation.alert_id == Alert.id)
+        .filter(
+            Investigation.id == investigation_id,
+            Alert.user_id == _user.id,
+        )
+        .first()
     )
     if investigation is None:
         raise HTTPException(
@@ -188,7 +202,13 @@ def update_investigation(
     it reopens that alert too.
     """
     investigation = (
-        db.query(Investigation).filter(Investigation.id == investigation_id).first()
+        db.query(Investigation)
+        .join(Alert, Investigation.alert_id == Alert.id)
+        .filter(
+            Investigation.id == investigation_id,
+            Alert.user_id == user.id,
+        )
+        .first()
     )
     if investigation is None:
         raise HTTPException(
@@ -264,7 +284,13 @@ def add_investigation_note(
 ) -> InvestigationNoteOut:
     """Append a note to the investigation thread."""
     investigation = (
-        db.query(Investigation).filter(Investigation.id == investigation_id).first()
+        db.query(Investigation)
+        .join(Alert, Investigation.alert_id == Alert.id)
+        .filter(
+            Investigation.id == investigation_id,
+            Alert.user_id == user.id,
+        )
+        .first()
     )
     if investigation is None:
         raise HTTPException(

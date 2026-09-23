@@ -27,6 +27,10 @@ services:
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
       APP_ENV: ${APP_ENV:-development}
+      REGISTER_RATE_LIMIT: ${REGISTER_RATE_LIMIT:-10/hour}
+      LOGIN_ACCOUNT_RATE_LIMIT: ${LOGIN_ACCOUNT_RATE_LIMIT:-30/minute}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
     volumes:
       - ./rules:/app/rules:ro
       - ./sample_logs:/app/sample_logs:ro

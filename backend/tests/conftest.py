@@ -13,9 +13,11 @@ os.environ["DATABASE_URL"] = (
     "postgresql+psycopg://sentinelx:change_me@127.0.0.1:5432/sentinelx_test"
 )
 os.environ["SECRET_KEY"] = "test-only-secret-key-that-is-long-enough-for-hmac-sha256-33bytes"
-# The whole suite shares a single TestClient IP, so login rate limiting must be
+# The whole suite shares a single TestClient IP, so rate limiting must be
 # disabled or later tests would be blocked regardless of correctness.
 os.environ["LOGIN_RATE_LIMIT"] = "0/minute"
+os.environ["LOGIN_ACCOUNT_RATE_LIMIT"] = "0/minute"
+os.environ["REGISTER_RATE_LIMIT"] = "0/minute"
 
 import pytest
 from fastapi.testclient import TestClient
@@ -40,15 +42,46 @@ def client():
 
 
 @pytest.fixture()
+def make_client():
+    """Create an additional TestClient with its own cookie jar.
+
+    Cookie sessions live on the client, so tests that need two authenticated
+    users at once (ownership isolation, RBAC) use this instead of sharing one
+    client. The demo admin is seeded by the first (session-scoped) client's
+    lifespan, so a second client can log in as admin against the shared DB.
+    """
+    clients = []
+
+    def factory():
+        test_client = TestClient(app)
+        clients.append(test_client)
+        return test_client
+
+    yield factory
+    for test_client in clients:
+        test_client.close()
+
+
+@pytest.fixture()
 def db():
     session = SessionLocal()
     yield session
     session.close()
 
 
+def _csrf_headers(client):
+    """Return the CSRF header matching the client's current session cookie.
+
+    The JWT rides in the client's HttpOnly cookie jar; state-changing requests
+    must also echo the sentinelx_csrf cookie value via X-CSRF-Token.
+    """
+    csrf = client.cookies.get("sentinelx_csrf")
+    return {"X-CSRF-Token": csrf} if csrf else {}
+
+
 @pytest.fixture()
 def auth_headers(client):
-    """Register a fresh analyst with a unique name and return bearer headers."""
+    """Register a fresh analyst on the client and return CSRF-session headers."""
     suffix = uuid.uuid4().hex[:8]
     response = client.post(
         "/api/auth/register",
@@ -59,17 +92,19 @@ def auth_headers(client):
         },
     )
     assert response.status_code == 201, response.text
-    token = response.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    return _csrf_headers(client)
 
 
 @pytest.fixture()
 def admin_headers(client):
-    """Login as the Demo seeded administrator and return bearer headers."""
+    """Log in as the seeded administrator and return CSRF-session headers.
+
+    Only valid while the shared client's cookie jar holds the admin session;
+    tests that need a second concurrent identity use ``make_client``.
+    """
     response = client.post(
         "/api/auth/login",
         json={"username": "admin", "password": "Admin@12345"},
     )
     assert response.status_code == 200, response.text
-    token = response.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    return _csrf_headers(client)

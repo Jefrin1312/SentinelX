@@ -3,10 +3,12 @@
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
+from app.auth.cookies import clear_auth_session, issue_auth_session
 from app.auth.dependencies import CurrentUser
+from app.auth.ipaddr import client_ip
 from app.auth.ratelimit import is_rate_limited
 from app.auth.security import (
     create_access_token,
@@ -33,35 +35,43 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 DbSession = Annotated[Session, Depends(get_db)]
 
 
-def _client_ip(request: Request) -> str | None:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else None
-
-
 @router.post(
     "/register",
     response_model=LoginResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Register a new analyst account",
 )
-def register(payload: RegisterRequest, request: Request, db: DbSession) -> LoginResponse:
+def register(
+    payload: RegisterRequest, request: Request, response: Response, db: DbSession
+) -> LoginResponse:
     """Create a new account.
 
     Self registration always produces an ``ANALYST`` account — administrators
     are only created through the configured demo seed. Passwords are hashed
-    with bcrypt before storage.
+    with bcrypt before storage. Registration is rate limited per client IP.
+    On success the JWT is issued inside an HttpOnly cookie (never in the JSON
+    body) together with a readable CSRF cookie.
     """
+    ip = client_ip(request)
+    settings = get_settings()
+
+    if is_rate_limited(ip or "unknown", limit=settings.REGISTER_RATE_LIMIT):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many registrations from this address. Try again shortly.",
+        )
+
     existing = (
         db.query(User)
         .filter((User.username == payload.username) | (User.email == payload.email))
         .first()
     )
     if existing is not None:
+        # Deliberately generic: the exact reason (username vs email collision)
+        # would reveal whether an account exists.
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="A user with that username or email already exists.",
+            detail="Registration failed. A user with that username or email may already exist.",
         )
 
     user = User(
@@ -81,27 +91,34 @@ def register(payload: RegisterRequest, request: Request, db: DbSession) -> Login
         action=AuditAction.USER_CREATED,
         resource_type="user",
         resource_id=user.id,
-        ip_address=_client_ip(request),
+        ip_address=ip,
         details={"username": user.username, "role": user.role},
     )
 
     token, jti = create_access_token(user_id=user.id, username=user.username, role=user.role)
-    settings = get_settings()
+    issue_auth_session(response, token)
     return LoginResponse(
-        access_token=token,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         user=UserOut.model_validate(user),
     )
 
 
 @router.post("/login", response_model=LoginResponse, summary="Log in")
-def login(payload: LoginRequest, request: Request, db: DbSession) -> LoginResponse:
-    """Authenticate with username and password and receive a JWT."""
+def login(
+    payload: LoginRequest, request: Request, response: Response, db: DbSession
+) -> LoginResponse:
+    """Authenticate with username and password and receive a JWT in a cookie."""
     user = db.query(User).filter(User.username == payload.username).first()
-    ip = _client_ip(request)
+    ip = client_ip(request)
     settings = get_settings()
 
-    if is_rate_limited(ip or "unknown", limit=settings.LOGIN_RATE_LIMIT):
+    # Per-client-IP limit, then a (looser) per-account limit so a distributed
+    # brute force across many sources still gets throttled.
+    rate_limited = is_rate_limited(ip or "unknown", limit=settings.LOGIN_RATE_LIMIT)
+    rate_limited = is_rate_limited(
+        f"account:{payload.username}", limit=settings.LOGIN_ACCOUNT_RATE_LIMIT
+    ) or rate_limited
+    if rate_limited:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many login attempts. Try again shortly.",
@@ -148,18 +165,22 @@ def login(payload: LoginRequest, request: Request, db: DbSession) -> LoginRespon
         ip_address=ip,
     )
 
+    issue_auth_session(response, token)
     return LoginResponse(
-        access_token=token,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         user=UserOut.model_validate(user),
     )
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, summary="Log out")
-def logout(request: Request, db: DbSession, current_user: CurrentUser) -> None:
-    """Revoke the current JWT so it can no longer be used."""
-    bearer = request.headers.get("Authorization", "")
-    token = bearer.removeprefix("Bearer ").strip()
+def logout(
+    request: Request,
+    response: Response,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> None:
+    """Revoke the current JWT and clear the session cookies."""
+    token = request.cookies.get("sentinelx_token", "").strip()
     try:
         payload = decode_access_token(token)
     except Exception as exc:
@@ -179,9 +200,10 @@ def logout(request: Request, db: DbSession, current_user: CurrentUser) -> None:
         action=AuditAction.LOGOUT,
         resource_type="user",
         resource_id=current_user.id,
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
     )
     db.commit()
+    clear_auth_session(response)
 
 
 @router.get("/me", response_model=UserOut, summary="Get the current user")
@@ -219,7 +241,7 @@ def update_profile(
         action=AuditAction.PROFILE_UPDATED,
         resource_type="user",
         resource_id=current_user.id,
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
         details={"email": payload.email},
     )
     return current_user
@@ -233,6 +255,7 @@ def update_profile(
 def change_password(
     payload: PasswordChange,
     request: Request,
+    response: Response,
     db: DbSession,
     current_user: CurrentUser,
 ) -> None:
@@ -248,7 +271,7 @@ def change_password(
             action=AuditAction.LOGIN_FAILURE,
             resource_type="user",
             resource_id=current_user.username,
-            ip_address=_client_ip(request),
+            ip_address=client_ip(request),
             details={"reason": "wrong_current_password"},
         )
         raise HTTPException(
@@ -259,8 +282,7 @@ def change_password(
     current_user.password_hash = hash_password(payload.new_password)
     db.commit()
 
-    bearer = request.headers.get("Authorization", "")
-    token = bearer.removeprefix("Bearer ").strip()
+    token = request.cookies.get("sentinelx_token", "").strip()
     try:
         payload = decode_access_token(token)
     except Exception:
@@ -280,5 +302,6 @@ def change_password(
         action=AuditAction.PASSWORD_CHANGED,
         resource_type="user",
         resource_id=current_user.id,
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
     )
+    clear_auth_session(response)

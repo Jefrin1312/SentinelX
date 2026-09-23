@@ -3,12 +3,26 @@ import axios from "axios";
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "/api",
   headers: { "Content-Type": "application/json" },
+  withCredentials: true,
 });
 
+function getCookie(name) {
+  const match = document.cookie.match(
+    new RegExp(`(?:^|;\\s*)${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}=([^;]*)`)
+  );
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("sentinelx_token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  // Double-submit CSRF: the (non-HttpOnly) sentinelx_csrf cookie set at login is
+  // echoed back as an X-CSRF-Token header on state-changing requests. The JWT
+  // itself lives only in the HttpOnly cookie and never touches JavaScript.
+  const method = (config.method || "get").toUpperCase();
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+    const csrf = getCookie("sentinelx_csrf");
+    if (csrf) {
+      config.headers["X-CSRF-Token"] = csrf;
+    }
   }
   return config;
 });
@@ -17,7 +31,9 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem("sentinelx_token");
+      // Notify React state so the UI updates immediately; the redirect is a
+      // safety net for non-React consumers.
+      window.dispatchEvent(new CustomEvent("sentinelx:unauthorized"));
       const current = window.location.pathname;
       if (current !== "/login" && current !== "/register") {
         window.location.href = "/login";

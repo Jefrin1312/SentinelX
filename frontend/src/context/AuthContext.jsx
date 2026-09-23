@@ -3,47 +3,33 @@ import { api, getApiError } from "../services/api.js";
 
 const AuthContext = createContext(null);
 
-function readUser() {
-  try {
-    return JSON.parse(localStorage.getItem("sentinelx_user") || "null");
-  } catch {
-    return null;
-  }
-}
-
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(readUser);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
 
-  const persist = useCallback((token, userData) => {
-    localStorage.setItem("sentinelx_token", token);
-    localStorage.setItem("sentinelx_user", JSON.stringify(userData));
-    setUser(userData);
-  }, []);
-
   const clear = useCallback(() => {
-    localStorage.removeItem("sentinelx_token");
-    localStorage.removeItem("sentinelx_user");
     setUser(null);
   }, []);
 
   const login = useCallback(
     async (username, password) => {
       const res = await api.post("/auth/login", { username, password });
-      persist(res.data.access_token, res.data.user);
+      // The JWT is delivered only in an HttpOnly cookie; React state holds the
+      // user profile and nothing is written to localStorage/sessionStorage.
+      setUser(res.data.user);
       return res.data.user;
     },
-    [persist]
+    []
   );
 
   const register = useCallback(
     async (username, email, password) => {
       const res = await api.post("/auth/register", { username, email, password });
-      persist(res.data.access_token, res.data.user);
+      setUser(res.data.user);
       return res.data.user;
     },
-    [persist]
+    []
   );
 
   const logout = useCallback(async () => {
@@ -57,23 +43,26 @@ export function AuthProvider({ children }) {
   }, [clear]);
 
   useEffect(() => {
-    const token = localStorage.getItem("sentinelx_token");
-    if (!token) {
-      setLoading(false);
-      setInitialized(true);
-      return;
-    }
-    api
-      .get("/auth/me")
-      .then((res) => {
-        localStorage.setItem("sentinelx_user", JSON.stringify(res.data));
-        setUser(res.data);
-      })
-      .catch(() => clear())
-      .finally(() => {
-        setLoading(false);
-        setInitialized(true);
-      });
+    // Session state is held only by the HttpOnly cookie, so verify it against
+    // the server on every page load and collapse the session on any 401.
+    const handleUnauthorized = clear;
+
+    const bootstrapSession = () => {
+      api
+        .get("/auth/me")
+        .then((res) => {
+          setUser(res.data.user ?? res.data);
+        })
+        .catch(() => clear())
+        .finally(() => {
+          setLoading(false);
+          setInitialized(true);
+        });
+    };
+
+    window.addEventListener("sentinelx:unauthorized", handleUnauthorized);
+    bootstrapSession();
+    return () => window.removeEventListener("sentinelx:unauthorized", handleUnauthorized);
   }, [clear]);
 
   return (

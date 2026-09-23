@@ -33,16 +33,16 @@ class UserOut(BaseModel):
     created_at: datetime
 
 
-class TokenResponse(BaseModel):
-    """JWT access token plus the owning user."""
+class LoginResponse(BaseModel):
+    """Successful login/registration.
 
-    access_token: str
-    token_type: str = "bearer"
-    expires_in: int
+    Deliberately does NOT include the access token: the JWT is delivered ONLY
+    via the HttpOnly session cookie so it never appears in JSON, headers, or
+    client-side storage.
+    """
 
-
-class LoginResponse(TokenResponse):
     user: UserOut
+    expires_in: int
 
 
 class ProfileUpdate(BaseModel):

@@ -25,6 +25,7 @@ from app.api import (
     settings as settings_api,
     users,
 )
+from app.auth.csrf import CSRFMiddleware
 from app.config import get_settings
 
 settings = get_settings()
@@ -61,13 +62,18 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     )
 
 
+# Middleware ordering matters: Starlette wraps them so that the LAST
+# add_middleware call is the OUTERMOST. CORS must be outermost so cross-origin
+# preflights are answered before CSRF would otherwise inspect them, while CSRF
+# runs before routing. Authentication/CSRF use HttpOnly same-site cookies.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
 )
+app.add_middleware(CSRFMiddleware)
 
 app.include_router(health.router, prefix=settings.API_PREFIX)
 app.include_router(auth.router, prefix=settings.API_PREFIX)

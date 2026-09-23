@@ -32,6 +32,22 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
+    # Comma separated IPs/CIDRs of reverse proxies. The X-Forwarded-For header
+    # is only trusted when the immediate peer is one of these; otherwise the
+    # real socket peer is used so headers cannot be spoofed to bypass rate
+    # limiting or poison audit logs.
+    TRUSTED_PROXIES: str = ""
+
+    # Brute-force protection for account creation and per-account logins.
+    # "N/second", "N/minute" or "N/hour"; empty or "0" disables.
+    REGISTER_RATE_LIMIT: str = "10/hour"
+    LOGIN_ACCOUNT_RATE_LIMIT: str = "30/minute"
+
+    # Only send the HttpOnly/Secure auth cookie over HTTPS. Development runs on
+    # plain HTTP (Vite proxy / docker-compose on localhost) so this must stay
+    # False there; production deployments served over HTTPS must set it True.
+    COOKIE_SECURE: bool = False
+
     # CORS — comma separated list of allowed origins.
     CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
 

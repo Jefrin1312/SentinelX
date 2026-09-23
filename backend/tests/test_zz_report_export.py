@@ -132,12 +132,19 @@ def test_report_export_respects_date_range(client, auth_headers, db) -> None:
     assert stale_ip not in text  # 60-day-old event falls outside the window
 
 
-def test_report_export_records_report_generated_audit(client, auth_headers, admin_headers) -> None:
+def test_report_export_records_report_generated_audit(client, auth_headers, make_client) -> None:
     _seed_signal(client, auth_headers)
     response = client.get("/api/reports/export", params={"days": 3}, headers=auth_headers)
     assert response.status_code == 200
 
-    audit = client.get(
+    admin = make_client()
+    admin_login = admin.post(
+        "/api/auth/login", json={"username": "admin", "password": "Admin@12345"}
+    )
+    assert admin_login.status_code == 200
+    admin_headers = {"X-CSRF-Token": admin.cookies.get("sentinelx_csrf")}
+
+    audit = admin.get(
         "/api/audit-logs", params={"action": "REPORT_GENERATED"}, headers=admin_headers
     ).json()["items"]
     pdf_entries = [entry for entry in audit if entry["resource_id"] == "pdf"]

@@ -16,7 +16,7 @@ def _registered_auth(client):
         },
     )
     assert response.status_code == 201, response.text
-    return {"Authorization": f"Bearer {response.json()['access_token']}"}, username
+    return {"X-CSRF-Token": client.cookies.get("sentinelx_csrf")}, username
 
 
 def test_update_profile_requires_auth(client) -> None:
@@ -41,11 +41,16 @@ def test_update_profile_changes_email(client, db) -> None:
     assert "PROFILE_UPDATED" in actions
 
 
-def test_update_profile_email_conflict(client) -> None:
+def test_update_profile_email_conflict(client, make_client) -> None:
     first, _ = _registered_auth(client)
-    second, _ = _registered_auth(client)
+    second_client = make_client()
+    _, _ = _registered_auth(second_client)
     taken = client.get("/api/auth/me", headers=first).json()["email"]
-    response = client.patch("/api/auth/me", json={"email": taken}, headers=second)
+    response = second_client.patch(
+        "/api/auth/me",
+        json={"email": taken},
+        headers={"X-CSRF-Token": second_client.cookies.get("sentinelx_csrf")},
+    )
     assert response.status_code == 409
 
 
@@ -103,8 +108,7 @@ def test_change_password_revokes_session_and_audits(client, db) -> None:
         "/api/auth/login", json={"username": username, "password": "Br@ndNewPass1"}
     )
     assert new_login.status_code == 200
-    new_headers = {"Authorization": f"Bearer {new_login.json()['access_token']}"}
-    uid = client.get("/api/auth/me", headers=new_headers).json()["id"]
+    uid = client.get("/api/auth/me").json()["id"]
 
     actions = [
         e.action

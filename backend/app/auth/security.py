@@ -53,6 +53,29 @@ def create_access_token(*, user_id: int, username: str, role: str) -> tuple[str,
 
 
 def decode_access_token(token: str) -> dict[str, Any]:
-    """Decode and validate a JWT. Raises ``jwt.PyJWTError`` on invalid tokens."""
+    """Decode and validate a JWT. Raises ``jwt.PyJWTError`` on invalid tokens.
+
+    The token must carry every claim the application issues, and ``sub`` must
+    be a positive integer user id. Omitting a claim (or crafting one) is
+    treated as invalid so no downstream code ever trusts incomplete tokens.
+    """
     settings = get_settings()
-    return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+    payload = jwt.decode(
+        token,
+        settings.SECRET_KEY,
+        algorithms=[settings.JWT_ALGORITHM],
+        options={"require": ["exp", "iat", "sub"]},
+    )
+
+    for claim in ("username", "role", "jti"):
+        if not payload.get(claim):
+            raise jwt.InvalidTokenError(f"Missing claim: {claim}")
+
+    try:
+        user_id = int(payload["sub"])
+    except (TypeError, ValueError):
+        raise jwt.InvalidTokenError("Invalid sub claim.") from None
+    if user_id <= 0:
+        raise jwt.InvalidTokenError("Invalid sub claim.")
+    payload["sub"] = user_id
+    return payload
