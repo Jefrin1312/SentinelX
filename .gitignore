@@ -33,6 +33,7 @@ nohup.out
 
 # ...but keep the bundled sample log files used by the import feature
 !sample_logs/*.log
+!backend/sample_logs/*.log
 
 # Local PostgreSQL dev data
 *.pgdata/
