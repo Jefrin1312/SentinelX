@@ -1,0 +1,45 @@
+# Authentication rules — brute force and credential abuse detection.
+#
+# These rules are loaded into the ``detection_rules`` table at startup by the
+# rule loader and evaluated against every ingested event by the detection
+# engine. They contain only declarative matching expressions and thresholds,
+# never executable code.
+
+category: authentication
+
+rules:
+  - name: SSH Brute Force Attempt
+    description: >
+      Multiple failed SSH password logins from the same source IP within a
+      five minute window — the classic signature of an active brute-force
+      attack against the SSH service.
+    severity: HIGH
+    threshold: 5
+    time_window: 300
+    rule_definition:
+      event_type: SSH_LOGIN_FAILURE
+      key: source_ip
+
+  - name: Authentication Failure Spike
+    description: >
+      A burst of generic authentication failures from one source, indicating
+      repeated credential abuse or a password spraying campaign.
+    severity: MEDIUM
+    threshold: 10
+    time_window: 300
+    rule_definition:
+      event_type: AUTH_FAILURE
+      key: source_ip
+
+  - name: Root SSH Login
+    description: >
+      Successful interactive SSH login as the root account. While not always
+      malicious, root logins over SSH are a strong indicator that a host has
+      been compromised or is being administered dishonestly.
+    severity: MEDIUM
+    threshold: 1
+    time_window: 60
+    rule_definition:
+      event_type: SSH_LOGIN_SUCCESS
+      key: username
+      status: SUCCESS

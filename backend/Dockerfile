@@ -10,6 +10,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
+COPY rules ./rules
+COPY sample_logs ./sample_logs
 
 EXPOSE 8000
 
