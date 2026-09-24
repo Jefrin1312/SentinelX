@@ -121,8 +121,10 @@ export default function Alerts() {
             />
           </div>
           <div className="field mt-auto">
-            <button className="btn btn-primary" onClick={applyFilters}>Apply filters</button>
-            <button className="btn btn-outline" style={{ marginLeft: 8 }} onClick={resetFilters}>Reset</button>
+            <div className="btn-row">
+              <button className="btn btn-primary" onClick={applyFilters}>Apply filters</button>
+              <button className="btn btn-outline" onClick={resetFilters}>Reset</button>
+            </div>
           </div>
         </div>
       </div>
@@ -142,13 +144,14 @@ export default function Alerts() {
         <div className="card">
           <div className="card-header">
             <h3 className="card-title">Alerts ({data.total})</h3>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div className="toolbar">
               <button className="btn btn-outline btn-sm" disabled={exporting} onClick={download}>
                 {exporting ? "Exporting…" : "Export CSV"}
               </button>
               {exportError && <span className="dim-cell">{exportError}</span>}
               <select
                 value={page.limit}
+                aria-label="Alerts per page"
                 onChange={(e) => setPage({ limit: Number(e.target.value), offset: 0 })}
               >
                 {PAGE_SIZES.map((n) => (
@@ -172,6 +175,7 @@ export default function Alerts() {
               </button>
             </div>
           </div>
+          <div className="table-wrap">
           <table className="data-table">
             <thead>
               <tr>
@@ -196,6 +200,7 @@ export default function Alerts() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

@@ -106,8 +106,10 @@ export default function Users() {
             </select>
           </div>
           <div className="field mt-auto">
-            <button className="btn btn-primary" onClick={applyFilters}>Apply filters</button>
-            <button className="btn btn-outline" style={{ marginLeft: 8 }} onClick={resetFilters}>Reset</button>
+            <div className="btn-row">
+              <button className="btn btn-primary" onClick={applyFilters}>Apply filters</button>
+              <button className="btn btn-outline" onClick={resetFilters}>Reset</button>
+            </div>
           </div>
         </div>
         {notice && <p className="text-good" style={{ padding: "8px 16px 0" }}>{notice}</p>}
@@ -126,9 +128,10 @@ export default function Users() {
         <div className="card">
           <div className="card-header">
             <h3 className="card-title">Accounts ({data.total})</h3>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div className="toolbar">
               <select
                 value={page.limit}
+                aria-label="Users per page"
                 onChange={(e) => setPage({ limit: Number(e.target.value), offset: 0 })}
               >
                 {PAGE_SIZES.map((n) => (
@@ -152,6 +155,7 @@ export default function Users() {
               </button>
             </div>
           </div>
+          <div className="table-wrap">
           <table className="data-table">
             <thead>
               <tr>
@@ -215,6 +219,7 @@ export default function Users() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

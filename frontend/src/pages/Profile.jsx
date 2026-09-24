@@ -99,7 +99,7 @@ export default function Profile() {
           </div>
 
           <form className="field-row" style={{ alignItems: "flex-end" }} onSubmit={saveProfile}>
-            <div className="field" style={{ minWidth: 280, flex: 1 }}>
+            <div className="field grow">
               <label className="field-label">Email</label>
               <input
                 type="email"

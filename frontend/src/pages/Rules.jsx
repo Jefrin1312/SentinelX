@@ -116,7 +116,7 @@ export default function Rules() {
           <h2 className="page-title">Detection Rules</h2>
           <p className="page-subtitle">Declarative threshold rules evaluated against every ingested event.</p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="toolbar">
           {isAdmin && (
             <button className="btn btn-primary btn-sm" onClick={() => { setFormOpen((v) => !v); setFormError(""); }}>
               {formOpen ? "Hide form" : "New rule"}
@@ -251,6 +251,7 @@ export default function Rules() {
           <div className="card-header">
             <h3 className="card-title">Ruleset ({total})</h3>
           </div>
+          <div className="table-wrap">
           <table className="data-table">
             <thead>
               <tr>
@@ -294,6 +295,7 @@ export default function Rules() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

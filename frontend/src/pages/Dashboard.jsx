@@ -194,28 +194,30 @@ export default function Dashboard() {
           {summary.recent_alerts.length === 0 ? (
             <EmptyState title="No alerts yet" message="Alerts appear when the detection engine flags suspicious activity." />
           ) : (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Severity</th>
-                  <th>Type</th>
-                  <th>Source</th>
-                  <th>Status</th>
-                  <th>Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summary.recent_alerts.slice(0, 8).map((a) => (
-                  <tr key={a.id}>
-                    <td><SeverityBadge severity={a.severity} /></td>
-                    <td><Link to={`/alerts/${a.id}`}>{a.alert_type}</Link></td>
-                    <td className="mono">{a.source_ip || "—"}</td>
-                    <td><StatusBadge status={a.status} /></td>
-                    <td className="dim-cell">{formatTime(a.created_at)}</td>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Severity</th>
+                    <th>Type</th>
+                    <th>Source</th>
+                    <th>Status</th>
+                    <th>Time</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {summary.recent_alerts.slice(0, 8).map((a) => (
+                    <tr key={a.id}>
+                      <td><SeverityBadge severity={a.severity} /></td>
+                      <td><Link to={`/alerts/${a.id}`}>{a.alert_type}</Link></td>
+                      <td className="mono">{a.source_ip || "—"}</td>
+                      <td><StatusBadge status={a.status} /></td>
+                      <td className="dim-cell">{formatTime(a.created_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 
@@ -227,26 +229,28 @@ export default function Dashboard() {
           {summary.recent_events.length === 0 ? (
             <EmptyState title="No events yet" message="Ingest logs to start the analysis pipeline." />
           ) : (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Type</th>
-                  <th>Source</th>
-                  <th>Username</th>
-                  <th>Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summary.recent_events.slice(0, 8).map((e) => (
-                  <tr key={e.id}>
-                    <td className="mono">{e.event_type}</td>
-                    <td className="mono">{e.source_ip || "—"}</td>
-                    <td>{e.username || "—"}</td>
-                    <td className="dim-cell">{formatTime(e.timestamp)}</td>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Source</th>
+                    <th>Username</th>
+                    <th>Time</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {summary.recent_events.slice(0, 8).map((e) => (
+                    <tr key={e.id}>
+                      <td className="mono">{e.event_type}</td>
+                      <td className="mono">{e.source_ip || "—"}</td>
+                      <td>{e.username || "—"}</td>
+                      <td className="dim-cell">{formatTime(e.timestamp)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>

@@ -210,8 +210,10 @@ export default function Logs() {
             />
           </div>
           <div className="field mt-auto">
-            <button className="btn btn-primary" onClick={applyFilters}>Apply filters</button>
-            <button className="btn btn-outline" style={{ marginLeft: 8 }} onClick={resetFilters}>Reset</button>
+            <div className="btn-row">
+              <button className="btn btn-primary" onClick={applyFilters}>Apply filters</button>
+              <button className="btn btn-outline" onClick={resetFilters}>Reset</button>
+            </div>
           </div>
         </div>
       </div>
@@ -219,8 +221,8 @@ export default function Logs() {
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-header">
           <h3 className="card-title">Ingest data</h3>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <select value={sample} onChange={(e) => setSample(e.target.value)}>
+          <div className="toolbar">
+            <select value={sample} onChange={(e) => setSample(e.target.value)} aria-label="Sample log">
               {SAMPLES.map((s) => (
                 <option key={s} value={s}>sample_logs/{s}.log</option>
               ))}
@@ -308,13 +310,14 @@ export default function Logs() {
         <div className="card">
           <div className="card-header">
             <h3 className="card-title">Events ({data.total})</h3>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div className="toolbar">
               <button className="btn btn-outline btn-sm" disabled={exporting} onClick={download}>
                 {exporting ? "Exporting…" : "Export CSV"}
               </button>
               {exportError && <span className="dim-cell">{exportError}</span>}
               <select
                 value={page.limit}
+                aria-label="Events per page"
                 onChange={(e) => setPage({ limit: Number(e.target.value), offset: 0 })}
               >
                 {PAGE_SIZES.map((n) => (
@@ -338,7 +341,8 @@ export default function Logs() {
               </button>
             </div>
           </div>
-          <table className="data-table">
+          <div className="table-wrap">
+            <table className="data-table">
             <thead>
               <tr>
                 <th>Time</th>
@@ -364,6 +368,7 @@ export default function Logs() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

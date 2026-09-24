@@ -99,7 +99,7 @@ export default function Reports() {
           <h2 className="page-title">Reports</h2>
           <p className="page-subtitle">Trends and breakdowns aggregated live from the event pipeline and detection engine.</p>
         </div>
-        <div className="field-row" style={{ gap: 8 }}>
+        <div className="toolbar">
           {DAY_OPTIONS.map((d) => (
             <button
               key={d}
