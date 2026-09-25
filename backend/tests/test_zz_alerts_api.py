@@ -8,12 +8,13 @@ def _marker_ip() -> str:
     return f"198.51.101.{int(uuid.uuid4().hex[:4], 16) % 200 + 20}"
 
 
-def _insert_alert(db, ip: str, **overrides) -> int:
+def _insert_alert(db, ip: str, user_id: int, **overrides) -> int:
     """Insert an alert directly (bypassing the engine) and return its id."""
     from app.models.alert import Alert
 
     status_value = overrides.pop("status", "OPEN")
     alert = Alert(
+        user_id=user_id,
         alert_type="TEST_CASE",
         severity="MEDIUM",
         source_ip=ip,
@@ -31,7 +32,7 @@ def test_alerts_require_auth(client) -> None:
     assert client.get("/api/alerts").status_code == 401
 
 
-def test_alert_directly_created_by_engine(client, auth_headers, db) -> None:
+def test_alert_directly_created_by_engine(client, auth_headers, db, session_user) -> None:
     """An alert raised by the engine carries rule context from its rule row."""
     from app.models.alert import Alert
     from app.models.event import Event
@@ -42,6 +43,7 @@ def test_alert_directly_created_by_engine(client, auth_headers, db) -> None:
 
     ip = _marker_ip()
     event = Event(
+        user_id=session_user.id,
         source_ip=ip,
         event_type="SSH_LOGIN_FAILURE",
         status="FAILED",
@@ -54,6 +56,7 @@ def test_alert_directly_created_by_engine(client, auth_headers, db) -> None:
 
     db.add(
         Alert(
+            user_id=session_user.id,
             event_id=event.id,
             rule_id=rule.id,
             alert_type=rule.name,
@@ -78,10 +81,10 @@ def test_alert_directly_created_by_engine(client, auth_headers, db) -> None:
     assert body["event"]["id"] == event.id
 
 
-def test_list_alerts_filters_and_paginates(client, auth_headers, db) -> None:
+def test_list_alerts_filters_and_paginates(client, auth_headers, db, session_user) -> None:
     ip = _marker_ip()
     for status_value in ("OPEN", "OPEN", "INVESTIGATING", "RESOLVED"):
-        _insert_alert(db, ip, status=status_value)
+        _insert_alert(db, ip, session_user.id, status=status_value)
 
     scoped = client.get("/api/alerts", params={"source_ip": ip}, headers=auth_headers).json()
     assert scoped["total"] == 4
@@ -98,8 +101,8 @@ def test_alert_detail_deleted_returns_404(client, auth_headers) -> None:
     assert client.get("/api/alerts/999999", headers=auth_headers).status_code == 404
 
 
-def test_alert_status_lifecycle(client, auth_headers, db) -> None:
-    alert_id = _insert_alert(db, _marker_ip())
+def test_alert_status_lifecycle(client, auth_headers, db, session_user) -> None:
+    alert_id = _insert_alert(db, _marker_ip(), session_user.id)
 
     investigating = client.patch(
         f"/api/alerts/{alert_id}/status",
@@ -128,8 +131,8 @@ def test_alert_status_lifecycle(client, auth_headers, db) -> None:
     assert entries[0].details.get("note") == "assigning to L2"
 
 
-def test_alert_status_rejects_invalid_value(client, auth_headers, db) -> None:
-    alert_id = _insert_alert(db, _marker_ip())
+def test_alert_status_rejects_invalid_value(client, auth_headers, db, session_user) -> None:
+    alert_id = _insert_alert(db, _marker_ip(), session_user.id)
     response = client.patch(
         f"/api/alerts/{alert_id}/status", json={"status": "PURGED"}, headers=auth_headers
     )

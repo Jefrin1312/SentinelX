@@ -5,6 +5,7 @@ import SeverityBadge from "./SeverityBadge.jsx";
 
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: "◈" },
+  { to: "/assistant", label: "Security Assistant", icon: "✦" },
   { to: "/logs", label: "Security Logs", icon: "▤" },
   { to: "/alerts", label: "Alerts", icon: "⚠" },
   { to: "/investigations", label: "Investigations", icon: "◇" },

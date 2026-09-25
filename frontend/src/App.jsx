@@ -14,6 +14,7 @@ import InvestigationDetail from "./pages/InvestigationDetail.jsx";
 import AuditLogs from "./pages/AuditLogs.jsx";
 import Users from "./pages/Users.jsx";
 import Reports from "./pages/Reports.jsx";
+import SecurityAssistant from "./pages/SecurityAssistant.jsx";
 import Settings from "./pages/Settings.jsx";
 import Profile from "./pages/Profile.jsx";
 
@@ -31,6 +32,7 @@ export default function App() {
           }
         >
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/assistant" element={<SecurityAssistant />} />
           <Route path="/logs" element={<Logs />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/alerts/:alertId" element={<AlertDetail />} />

@@ -64,11 +64,36 @@ the backend (`app/config.py`, pydantic-settings). Documented values:
 | `LOGIN_RATE_LIMIT` | `10/minute` | Login brute-force limit per IP; `0/minute` or empty disables |
 | `MAX_UPLOAD_SIZE_MB` | `5` | Max uploaded log file size |
 | `MAX_UPLOAD_LINES` | `5000` | Max uploaded log lines |
+| `AI_ENABLED` | `false` | Enable the Security Assistant (also needs `AI_API_KEY`) |
+| `AI_PROVIDER` | `openai` | Provider adapter to use |
+| `AI_MODEL` | `gpt-4o-mini` | Model identifier sent to the provider |
+| `AI_API_KEY` | *(empty)* | Provider API key — **backend only**, never a `VITE_*` variable |
+| `AI_RATE_LIMIT` | `20/minute` | Assistant requests per user; `0/minute` or empty disables |
+| `AI_MAX_TOOL_CALLS` | `8` | Max tool calls per assistant request (0–20) |
+| `AI_MAX_CONTEXT_RECORDS` | `20` | Max records the assistant may load per request (1–50) |
+| `AI_MAX_MESSAGE_LENGTH` | `2000` | Max question length in characters |
+| `AI_MAX_TOOL_RESULT_CHARS` | `8000` | Cap on a single tool result sent to the model |
 | `VITE_API_TARGET` | `http://localhost:8000` | Backend URL for the Vite dev proxy |
 
-The compose file injects `DATABASE_URL`, `SECRET_KEY`, `CORS_ORIGINS` and
-`APP_ENV` into the backend container, wiring Postgres through the compose
-network (host `postgres`, port `5432`).
+The compose file injects `DATABASE_URL`, `SECRET_KEY`, `CORS_ORIGINS`,
+`APP_ENV` and the `AI_*` assistant variables into the backend container,
+wiring Postgres through the compose network (host `postgres`, port `5432`).
+
+### Security Assistant (optional)
+
+The assistant answers questions about your own events, alerts, investigations
+and detection rules. It is disabled by default. To switch it on, set in `.env`:
+
+```bash
+AI_ENABLED=true
+AI_API_KEY=<your provider key>   # backend only
+```
+
+Restart the backend (`docker compose up -d --build backend`) and open
+**Security Assistant** in the sidebar. See
+[security.md §28](security.md) for the trust boundary and
+[api.md](api.md) for the endpoint contract. Without a key the endpoint returns
+`503`, so leaving it disabled is a supported configuration.
 
 ## Local development
 
@@ -112,7 +137,7 @@ cd backend
 
 `conftest.py` drops and recreates the schema once per session, disables login
 rate limiting (the suite shares one TestClient IP), and provides `client`,
-`db`, `auth_headers` and `admin_headers` fixtures.
+`db`, `auth_headers`, `admin_headers` and `session_user` fixtures.
 
 ## Rules & sample data
 

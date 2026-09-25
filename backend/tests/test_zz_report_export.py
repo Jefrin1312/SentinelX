@@ -110,12 +110,13 @@ def test_report_export_downloads_valid_pdf(client, auth_headers) -> None:
     assert "Generated" in text
 
 
-def test_report_export_respects_date_range(client, auth_headers, db) -> None:
+def test_report_export_respects_date_range(client, auth_headers, db, session_user) -> None:
     _seed_signal(client, auth_headers)
 
     stale_ip = "203.0.113.99"
     db.add(
         Event(
+            user_id=session_user.id,
             timestamp=datetime.now(timezone.utc) - timedelta(days=60),
             source_ip=stale_ip,
             event_type="SSH_LOGIN_FAILURE",

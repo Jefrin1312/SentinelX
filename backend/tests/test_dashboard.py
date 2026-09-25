@@ -36,7 +36,7 @@ def test_dashboard_timeline_returns_empty_window(client, auth_headers) -> None:
     assert all(point["events"] == 0 for point in body)
 
 
-def test_dashboard_reflects_ingested_data(client, auth_headers, db) -> None:
+def test_dashboard_reflects_ingested_data(client, auth_headers, db, session_user) -> None:
     """The dashboard must aggregate real rows, never hardcoded values."""
     from app.models.alert import Alert
     from app.models.event import Event
@@ -44,6 +44,7 @@ def test_dashboard_reflects_ingested_data(client, auth_headers, db) -> None:
     for _ in range(3):
         db.add(
             Event(
+                user_id=session_user.id,
                 source_ip="203.0.113.50",
                 event_type="SSH_LOGIN_FAILURE",
                 status="FAILED",
@@ -54,6 +55,7 @@ def test_dashboard_reflects_ingested_data(client, auth_headers, db) -> None:
         )
     db.add(
         Alert(
+            user_id=session_user.id,
             alert_type="SSH_BRUTE_FORCE",
             severity="HIGH",
             source_ip="203.0.113.50",

@@ -8,6 +8,7 @@ environment values.
 
 from functools import lru_cache
 
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -61,6 +62,22 @@ class Settings(BaseSettings):
 
     # Slow down failed login attempts (simple brute-force protection).
     LOGIN_RATE_LIMIT: str = "10/minute"
+
+    # Security Assistant (read-only, user-scoped). Disabled unless AI_ENABLED
+    # is true and a provider key is supplied. The key is only ever read by the
+    # backend provider; it is never exposed to the client or logged.
+    AI_ENABLED: bool = False
+    AI_PROVIDER: str = "openai"
+    AI_MODEL: str = "gpt-4o-mini"
+    AI_API_KEY: SecretStr = SecretStr("")
+    # Per-user assistant budget. "N/second", "N/minute" or "N/hour"; "0" disables.
+    AI_RATE_LIMIT: str = "20/minute"
+    AI_MAX_TOOL_CALLS: int = Field(default=8, ge=0, le=20)
+    AI_MAX_CONTEXT_RECORDS: int = Field(default=20, ge=1, le=50)
+    AI_MAX_MESSAGE_LENGTH: int = Field(default=2000, ge=1, le=8000)
+    AI_MAX_OUTPUT_TOKENS: int = Field(default=800, ge=64, le=4096)
+    AI_MAX_TOOL_RESULT_CHARS: int = Field(default=8000, ge=500, le=40000)
+    AI_REQUEST_TIMEOUT_SECONDS: int = Field(default=20, ge=1, le=120)
 
     model_config = SettingsConfigDict(
         env_file=".env",

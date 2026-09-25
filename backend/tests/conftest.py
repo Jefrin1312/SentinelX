@@ -108,3 +108,20 @@ def admin_headers(client):
     )
     assert response.status_code == 200, response.text
     return _csrf_headers(client)
+
+
+@pytest.fixture()
+def session_user(client, db):
+    """Return the User row for the identity currently held by ``client``.
+
+    Tests that write rows directly (rather than through the API) must scope
+    them to this user, because events and alerts are tenant-owned.
+    """
+    from app.auth.cookies import AUTH_COOKIE
+    from app.auth.security import decode_access_token
+    from app.models.user import User
+
+    token = client.cookies.get(AUTH_COOKIE)
+    assert token, "client holds no session cookie; use a fixture that logs in first"
+    payload = decode_access_token(token)
+    return db.query(User).filter(User.id == int(payload["sub"])).one()

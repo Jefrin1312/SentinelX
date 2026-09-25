@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 
 from app import bootstrap
 from app.api import (
+    ai,
     alerts,
     audit,
     auth,
@@ -86,6 +87,7 @@ app.include_router(investigations.router, prefix=settings.API_PREFIX)
 app.include_router(audit.router, prefix=settings.API_PREFIX)
 app.include_router(reports.router, prefix=settings.API_PREFIX)
 app.include_router(settings_api.router, prefix=settings.API_PREFIX)
+app.include_router(ai.router, prefix=settings.API_PREFIX)
 
 
 @app.get("/", include_in_schema=False)

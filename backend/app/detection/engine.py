@@ -88,6 +88,7 @@ def _evaluate_rule(db: Session, rule: DetectionRule, event: Event) -> Alert | No
     since = event.timestamp - timedelta(seconds=window)
 
     conditions = [
+        Event.user_id == event.user_id,
         Event.event_type.in_(event_types),
         Event.timestamp >= since,
         Event.timestamp <= event.timestamp,

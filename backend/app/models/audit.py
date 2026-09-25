@@ -31,6 +31,7 @@ class AuditAction:
     NOTE_ADDED = "NOTE_ADDED"
     REPORT_GENERATED = "REPORT_GENERATED"
     LOGS_INGESTED = "LOGS_INGESTED"
+    AI_QUERY = "AI_QUERY"
 
 
 class AuditLog(Base):

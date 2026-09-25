@@ -5,10 +5,12 @@ and `/api/redoc`, generated from the FastAPI app at runtime.
 
 ## Conventions
 
-- **Authentication** — `Authorization: Bearer <JWT>`. Obtain a token from
-  `POST /api/auth/login`. The frontend stores it in `localStorage` under
-  `sentinelx_token` and attaches it with an axios interceptor; a `401` response
-  clears the token and redirects to `/login`.
+- **Authentication** — an HttpOnly, SameSite session cookie issued by
+  `POST /api/auth/login`. The JWT never touches JavaScript, `localStorage` or
+  request headers; the frontend relies on the cookie being sent automatically.
+  State-changing requests must echo the `sentinelx_csrf` cookie in an
+  `X-CSRF-Token` header (double-submit). A `401` response clears the client
+  session and redirects to `/login`.
 - **Authorization** — enforced server side on every request. `analyst` = any
   authenticated, active user (ANALYST or ADMIN); `admin` = ADMIN only.
 - **Pagination** — list endpoints accept `skip` and `limit` and return
@@ -335,6 +337,51 @@ curl -s -OJ \
   -H "Authorization: Bearer $TOKEN" \
   "http://localhost:8080/api/reports/export?days=7"
 ```
+
+---
+
+## Security Assistant
+
+| Method | Path | Access | Description |
+| ------ | ---- | ------ | ----------- |
+| POST | `/api/ai/chat` | Analyst | Ask a natural-language question about your own security data |
+
+The assistant is read-only. It answers from records the **authenticated caller**
+already owns, using a fixed set of backend tools; it can never read another
+user's data, execute SQL or shell commands, or change any state.
+
+**POST /api/ai/chat**
+
+```json
+{ "message": "What is happening in my environment today?", "conversation_id": "5c2c…" }
+```
+
+- `message`: 1–`AI_MAX_MESSAGE_LENGTH` characters (default 2000).
+- `conversation_id`: optional UUID. It is an **opaque correlation id only** —
+  the backend keeps no conversation, history or prompt state, and the value is
+  never used for authorization. The client may keep its own transcript and
+  re-send the same id with follow-up questions.
+- Any other field (including `user_id`) is rejected with `422`. The acting user
+  comes from the session cookie, never from the request body.
+- Returns `{ message, conversation_id, sources }`, where `sources` lists the
+  events, alerts, investigations, notes and rules that grounded the answer.
+
+Security properties:
+
+- Requires an active session (`401` otherwise) and a valid CSRF token (`403`).
+- Per-user rate limited via `AI_RATE_LIMIT` (`429` when exceeded).
+- Bounded work per request: `AI_MAX_TOOL_CALLS` tool calls and
+  `AI_MAX_CONTEXT_RECORDS` records, each result capped at
+  `AI_MAX_TOOL_RESULT_CHARS`.
+- Every tool re-applies the ownership predicate, so a foreign record ID is
+  reported as not found rather than returned.
+- Record text (messages, descriptions, notes, usernames) is passed to the model
+  as untrusted data and can never become an instruction.
+- Disabled or unconfigured deployments return `503`.
+- Records `AI_QUERY` in the audit log with the acting user, client IP, outcome,
+  tool names and token counts — never the question or the answer.
+
+Requires `AI_ENABLED=true` and `AI_API_KEY`; see `.env.example`.
 
 ---
 
