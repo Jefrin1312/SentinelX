@@ -369,7 +369,8 @@ user's data, execute SQL or shell commands, or change any state.
 Security properties:
 
 - Requires an active session (`401` otherwise) and a valid CSRF token (`403`).
-- Per-user rate limited via `AI_RATE_LIMIT` (`429` when exceeded).
+- Per-user rate limited via `AI_RATE_LIMIT` (`429` when exceeded). The limit is
+  applied before the provider is called.
 - Bounded work per request: `AI_MAX_TOOL_CALLS` tool calls and
   `AI_MAX_CONTEXT_RECORDS` records, each result capped at
   `AI_MAX_TOOL_RESULT_CHARS`.
@@ -377,11 +378,20 @@ Security properties:
   reported as not found rather than returned.
 - Record text (messages, descriptions, notes, usernames) is passed to the model
   as untrusted data and can never become an instruction.
-- Disabled or unconfigured deployments return `503`.
+- Disabled or unconfigured deployments return `503`. Provider failures are
+  mapped to `502` (upstream error or malformed response), `503` (busy, or
+  invalid credentials) or `504` (timeout); the response body never contains
+  provider detail, keys, prompts or answers.
 - Records `AI_QUERY` in the audit log with the acting user, client IP, outcome,
-  tool names and token counts — never the question or the answer.
+  provider, model, tool names and token counts — never the question or the
+  answer.
+- The provider is selected only by the `AI_PROVIDER` environment variable. The
+  request body cannot select a provider, supply credentials, or change the
+  authenticated user; extra fields are rejected with `422`.
 
-Requires `AI_ENABLED=true` and `AI_API_KEY`; see `.env.example`.
+Requires `AI_ENABLED=true` plus the key for the configured provider: `AI_API_KEY`
+for `AI_PROVIDER=openai`, or `GEMINI_API_KEY` for `AI_PROVIDER=gemini`. See
+`.env.example`.
 
 ---
 

@@ -23,6 +23,10 @@ class ProviderRateLimited(ProviderError):
     pass
 
 
+class ProviderAuthenticationError(ProviderError):
+    pass
+
+
 class ProviderUnavailable(ProviderError):
     pass
 
@@ -36,6 +40,7 @@ class ProviderToolCall:
     id: str
     name: str
     arguments: dict[str, Any]
+    thought_signature: str | None = None
 
 
 @dataclass(frozen=True)
@@ -155,6 +160,35 @@ class OpenAIProvider:
 
 
 def get_provider(provider_name: str, api_key: str, timeout_seconds: float) -> AIProvider:
-    if provider_name.lower() == "openai":
+    name = (provider_name or "").strip().lower()
+    if name == "openai":
         return OpenAIProvider(api_key=api_key, timeout_seconds=timeout_seconds)
+    if name == "gemini":
+        from app.ai.gemini import GeminiProvider
+
+        return GeminiProvider(api_key=api_key, timeout_seconds=timeout_seconds)
     raise ProviderConfigurationError
+
+
+def build_provider(settings: Any) -> tuple[AIProvider, str]:
+    """Resolve the configured provider, its key and its model.
+
+    Selection is trusted deployment configuration. Each provider reads only its
+    own key, and an unknown or incompletely configured provider raises
+    ``ProviderConfigurationError`` instead of silently falling back.
+    """
+    name = (settings.AI_PROVIDER or "").strip().lower()
+    timeout = float(settings.AI_REQUEST_TIMEOUT_SECONDS)
+
+    if name == "openai":
+        api_key = settings.AI_API_KEY.get_secret_value().strip()
+        model = (settings.AI_MODEL or "").strip()
+    elif name == "gemini":
+        api_key = settings.GEMINI_API_KEY.get_secret_value().strip()
+        model = (settings.GEMINI_MODEL or "").strip()
+    else:
+        raise ProviderConfigurationError
+
+    if not api_key or not model:
+        raise ProviderConfigurationError
+    return get_provider(name, api_key, timeout), model

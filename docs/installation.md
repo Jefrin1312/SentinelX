@@ -64,10 +64,12 @@ the backend (`app/config.py`, pydantic-settings). Documented values:
 | `LOGIN_RATE_LIMIT` | `10/minute` | Login brute-force limit per IP; `0/minute` or empty disables |
 | `MAX_UPLOAD_SIZE_MB` | `5` | Max uploaded log file size |
 | `MAX_UPLOAD_LINES` | `5000` | Max uploaded log lines |
-| `AI_ENABLED` | `false` | Enable the Security Assistant (also needs `AI_API_KEY`) |
-| `AI_PROVIDER` | `openai` | Provider adapter to use |
-| `AI_MODEL` | `gpt-4o-mini` | Model identifier sent to the provider |
-| `AI_API_KEY` | *(empty)* | Provider API key — **backend only**, never a `VITE_*` variable |
+| `AI_ENABLED` | `false` | Enable the Security Assistant (also needs the selected provider's key) |
+| `AI_PROVIDER` | `openai` | Provider adapter to use: `openai` or `gemini`. Any other value fails closed |
+| `AI_MODEL` | `gpt-4o-mini` | Model identifier sent to the provider when `AI_PROVIDER=openai` |
+| `AI_API_KEY` | *(empty)* | OpenAI API key — **backend only**, never a `VITE_*` variable |
+| `GEMINI_API_KEY` | *(empty)* | Google Gemini API key, used only when `AI_PROVIDER=gemini` — **backend only** |
+| `GEMINI_MODEL` | `gemini-3.5-flash` | Gemini model identifier, used only when `AI_PROVIDER=gemini` |
 | `AI_RATE_LIMIT` | `20/minute` | Assistant requests per user; `0/minute` or empty disables |
 | `AI_MAX_TOOL_CALLS` | `8` | Max tool calls per assistant request (0–20) |
 | `AI_MAX_CONTEXT_RECORDS` | `20` | Max records the assistant may load per request (1–50) |
@@ -76,8 +78,9 @@ the backend (`app/config.py`, pydantic-settings). Documented values:
 | `VITE_API_TARGET` | `http://localhost:8000` | Backend URL for the Vite dev proxy |
 
 The compose file injects `DATABASE_URL`, `SECRET_KEY`, `CORS_ORIGINS`,
-`APP_ENV` and the `AI_*` assistant variables into the backend container,
-wiring Postgres through the compose network (host `postgres`, port `5432`).
+`APP_ENV` and the `AI_*`/`GEMINI_*` assistant variables into the backend
+container, wiring Postgres through the compose network (host `postgres`, port
+`5432`).
 
 ### Security Assistant (optional)
 
@@ -85,9 +88,27 @@ The assistant answers questions about your own events, alerts, investigations
 and detection rules. It is disabled by default. To switch it on, set in `.env`:
 
 ```bash
+# OpenAI
 AI_ENABLED=true
-AI_API_KEY=<your provider key>   # backend only
+AI_PROVIDER=openai
+AI_MODEL=gpt-4o-mini
+AI_API_KEY=<your OpenAI key>          # backend only
 ```
+
+```bash
+# Google Gemini
+AI_ENABLED=true
+AI_PROVIDER=gemini
+GEMINI_MODEL=gemini-3.5-flash
+GEMINI_API_KEY=<your Gemini key>      # backend only
+```
+
+`AI_PROVIDER` is trusted deployment configuration: the client never chooses the
+provider. Each provider reads only its own key, and there is no automatic
+fallback — if the selected provider is unknown or its key or model is empty,
+the endpoint returns `503` without contacting any provider. The default
+`GEMINI_MODEL` is a model available on the Gemini free tier; confirm Google's
+current model list and your quota before changing it.
 
 Restart the backend (`docker compose up -d --build backend`) and open
 **Security Assistant** in the sidebar. See

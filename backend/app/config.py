@@ -64,12 +64,18 @@ class Settings(BaseSettings):
     LOGIN_RATE_LIMIT: str = "10/minute"
 
     # Security Assistant (read-only, user-scoped). Disabled unless AI_ENABLED
-    # is true and a provider key is supplied. The key is only ever read by the
-    # backend provider; it is never exposed to the client or logged.
+    # is true and the key for the selected provider is supplied. The key is only
+    # ever read by the backend provider; it is never exposed to the client or
+    # logged. AI_PROVIDER is trusted deployment configuration: "openai" or
+    # "gemini". There is no automatic fallback between providers.
     AI_ENABLED: bool = False
     AI_PROVIDER: str = "openai"
     AI_MODEL: str = "gpt-4o-mini"
     AI_API_KEY: SecretStr = SecretStr("")
+    # Google Gemini. Used only when AI_PROVIDER is "gemini". The default is a
+    # model that is available on the Gemini free tier; override per deployment.
+    GEMINI_API_KEY: SecretStr = SecretStr("")
+    GEMINI_MODEL: str = "gemini-3.5-flash"
     # Per-user assistant budget. "N/second", "N/minute" or "N/hour"; "0" disables.
     AI_RATE_LIMIT: str = "20/minute"
     AI_MAX_TOOL_CALLS: int = Field(default=8, ge=0, le=20)

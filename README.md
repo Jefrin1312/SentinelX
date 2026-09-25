@@ -7,7 +7,8 @@ normalising and analysing security logs, detecting suspicious activity through
 a rule-based detection engine, and managing investigations of generated
 alerts. Reports can be downloaded as CSV evidence or as a PDF security report.
 An optional read-only Security Assistant answers questions about your own data
-using a fixed set of tenant-scoped backend tools. It is designed as a polished,
+using a fixed set of tenant-scoped backend tools. It supports either OpenAI or
+Google Gemini, selected by backend configuration. It is designed as a polished,
 full-stack cybersecurity portfolio project.
 
 > Development build — the detection pipeline is actively evolving. Demo

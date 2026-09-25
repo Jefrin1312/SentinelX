@@ -8,6 +8,7 @@ request and never returns data belonging to another user.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from typing import Any
@@ -22,12 +23,13 @@ from app.ai.prompts import (
     build_user_message,
 )
 from app.ai.provider import (
+    ProviderAuthenticationError,
     ProviderConfigurationError,
     ProviderRateLimited,
     ProviderResponseError,
     ProviderTimeout,
     ProviderUnavailable,
-    get_provider,
+    build_provider,
 )
 from app.ai.schemas import AIChatRequest, AIChatResponse, AISource
 from app.ai.tools import TOOL_DEFINITIONS, TOOL_NAMES, ToolRegistry
@@ -40,6 +42,7 @@ from app.services.audit import write_audit
 logger = logging.getLogger(__name__)
 
 MAX_SOURCES = 20
+MAX_ECHOED_ARGUMENT_CHARS = 2000
 
 
 class AssistantError(Exception):
@@ -67,19 +70,14 @@ def run_chat(
 
     if is_rate_limited(f"ai:{user.id}", limit=settings.AI_RATE_LIMIT):
         _audit(db, user, ip_address, conversation_id, "rate_limited", base_audit)
+        _log_event("rate_limited", settings, user, conversation_id, started)
         raise AssistantError(429, "Too many assistant requests. Please try again shortly.")
 
-    api_key = settings.AI_API_KEY.get_secret_value().strip()
-    if not api_key:
-        _audit(db, user, ip_address, conversation_id, "not_configured", base_audit)
-        raise AssistantError(503, "The Security Assistant is not configured.")
-
     try:
-        provider = get_provider(
-            settings.AI_PROVIDER, api_key, float(settings.AI_REQUEST_TIMEOUT_SECONDS)
-        )
+        provider, model = build_provider(settings)
     except ProviderConfigurationError:
         _audit(db, user, ip_address, conversation_id, "not_configured", base_audit)
+        _log_event("not_configured", settings, user, conversation_id, started)
         raise AssistantError(503, "The Security Assistant is not configured.") from None
 
     registry = ToolRegistry(
@@ -101,17 +99,24 @@ def run_chat(
             response = provider.complete(
                 messages=messages,
                 tools=definitions,
-                model=settings.AI_MODEL,
+                model=model,
                 max_output_tokens=settings.AI_MAX_OUTPUT_TOKENS,
             )
         except ProviderTimeout:
             _audit(db, user, ip_address, conversation_id, "provider_timeout", base_audit)
+            _log_event("provider_timeout", settings, user, conversation_id, started)
             raise AssistantError(504, "The Security Assistant timed out. Please try again.") from None
         except ProviderRateLimited:
             _audit(db, user, ip_address, conversation_id, "provider_rate_limited", base_audit)
+            _log_event("provider_rate_limited", settings, user, conversation_id, started)
             raise AssistantError(503, "The Security Assistant is busy. Please try again later.") from None
+        except ProviderAuthenticationError:
+            _audit(db, user, ip_address, conversation_id, "provider_auth_failed", base_audit)
+            _log_event("provider_auth_failed", settings, user, conversation_id, started)
+            raise AssistantError(503, "The Security Assistant is not configured.") from None
         except (ProviderResponseError, ProviderUnavailable):
             _audit(db, user, ip_address, conversation_id, "provider_error", base_audit)
+            _log_event("provider_error", settings, user, conversation_id, started)
             raise AssistantError(502, "The Security Assistant is temporarily unavailable.") from None
 
         if not response.tool_calls:
@@ -129,6 +134,7 @@ def run_chat(
                         "tool_calls": tool_calls_used,
                     },
                 )
+                _log_event("empty_response", settings, user, conversation_id, started)
                 raise AssistantError(502, "The Security Assistant returned an empty response.")
             _audit(
                 db,
@@ -142,11 +148,12 @@ def run_chat(
                     "tools": sorted(tool_names),
                     "tool_calls": tool_calls_used,
                     "sources": len(sources),
-                    "model": settings.AI_MODEL[:60],
+                    "model": model[:60],
                     "prompt_tokens": response.prompt_tokens,
                     "completion_tokens": response.completion_tokens,
                 },
             )
+            _log_event("success", settings, user, conversation_id, started, model=model)
             return AIChatResponse(
                 message=answer,
                 conversation_id=conversation_id,
@@ -166,6 +173,7 @@ def run_chat(
                     "tool_calls": tool_calls_used,
                 },
             )
+            _log_event("tool_budget_exhausted", settings, user, conversation_id, started)
             raise AssistantError(502, "The Security Assistant exceeded its tool budget.")
 
         assistant_tool_calls: list[dict[str, Any]] = []
@@ -201,13 +209,14 @@ def run_chat(
                     },
                 )
 
-            assistant_tool_calls.append(
-                {
-                    "id": call_id,
-                    "type": "function",
-                    "function": {"name": name, "arguments": "{}"},
-                }
-            )
+            echoed_call: dict[str, Any] = {
+                "id": call_id,
+                "type": "function",
+                "function": {"name": name, "arguments": _serialise_arguments(call.arguments)},
+            }
+            if call.thought_signature:
+                echoed_call["thought_signature"] = call.thought_signature
+            assistant_tool_calls.append(echoed_call)
             tool_messages.append(
                 {"role": "tool", "tool_call_id": call_id, "content": content}
             )
@@ -218,6 +227,51 @@ def run_chat(
         if remaining_calls <= 0:
             messages.append(build_tool_limit_message())
         messages.extend(tool_messages)
+
+
+def _serialise_arguments(arguments: dict[str, Any]) -> str:
+    """Echo the model's own tool arguments back into the conversation history.
+
+    Both providers need the original arguments to replay or address the call.
+    The object has already been size-limited by the provider adapter, and it is
+    bounded again here so a large argument object cannot bloat the next request.
+    """
+    try:
+        serialised = json.dumps(
+            arguments, ensure_ascii=False, separators=(",", ":"), default=str
+        )
+    except (TypeError, ValueError):
+        return "{}"
+    if len(serialised) > MAX_ECHOED_ARGUMENT_CHARS:
+        return "{}"
+    return serialised
+
+
+def _log_event(
+    outcome: str,
+    settings: Any,
+    user: User,
+    conversation_id: Any,
+    started: float,
+    model: str | None = None,
+) -> None:
+    """Record a safe provider diagnostic.
+
+    Only the outcome, provider, correlation id, duration, user id and model are
+    emitted. Prompts, answers, tool contents, API keys and request headers are
+    never logged.
+    """
+    logger.info(
+        "security_assistant_request",
+        extra={
+            "ai_outcome": outcome,
+            "ai_provider": (settings.AI_PROVIDER or "")[:40],
+            "ai_conversation_id": str(conversation_id),
+            "ai_user_id": user.id,
+            "ai_duration_ms": _latency_ms(started),
+            "ai_model": (model or "")[:60],
+        },
+    )
 
 
 def _limit_result() -> dict[str, Any]:
